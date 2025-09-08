@@ -38,10 +38,7 @@ class PostRegisterController extends Controller
         $data = $this->validateRequest($request);
         
         $data['password'] = Hash::make($data['password']);
-        
-        if (!isset($data['role'])) {
-            $data['role'] = 'REGULAR';
-        }
+        $data['role'] = 'REGULAR';
         
         $user = User::create($data);
         
@@ -64,7 +61,6 @@ class PostRegisterController extends Controller
             'username' => 'required|string|max:255|unique:users,username',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:8|confirmed',
-            'role' => ['sometimes', 'string', Rule::in(['REGULAR', 'APPROVER'])],
         ]);
     }
 }
