@@ -24,7 +24,6 @@ class PasswordResetController extends Controller
     {
         $data = $this->validateRequest($request);
         
-        // Attempt to reset the user's password
         $status = Password::reset(
             $data,
             function (User $user, string $password) {
@@ -33,7 +32,6 @@ class PasswordResetController extends Controller
                     'remember_token' => Str::random(60),
                 ])->save();
                 
-                // Revoke all existing tokens for security
                 $user->tokens()->delete();
                 
                 event(new PasswordReset($user));
@@ -55,11 +53,13 @@ class PasswordResetController extends Controller
             Password::RESET_THROTTLED => 'Please wait before retrying password reset.',
             default => trans($status)
         };
-        
-        throw ValidationException::withMessages([
+
+        $errors = [
             'token' => $status === Password::INVALID_TOKEN ? [$errorMessage] : [],
             'email' => $status !== Password::INVALID_TOKEN ? [$errorMessage] : [],
-        ]);
+        ];
+
+        throw ValidationException::withMessages($errors);
     }
     
     /**

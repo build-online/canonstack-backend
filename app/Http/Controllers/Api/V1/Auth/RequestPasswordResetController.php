@@ -19,8 +19,6 @@ class RequestPasswordResetController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $data = $this->validateRequest($request);
-        
-        // Send password reset link via email
         $status = Password::sendResetLink($data);
         
         if ($status === Password::RESET_LINK_SENT) {
@@ -31,7 +29,6 @@ class RequestPasswordResetController extends Controller
             );
         }
         
-        // If email not found, return validation error
         throw ValidationException::withMessages([
             'email' => [trans($status)]
         ]);
