@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api\V1\Auth;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Auth\AuthenticationException;
+use Illuminate\Validation\ValidationException;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
@@ -19,16 +19,20 @@ class PostLoginController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $data = $this->validateRequest($request);
+        
+        $email = $data['email'];
+        $password = $data['password'];
 
-        if (auth()->attempt($data)) {
-            $me = auth()->user();
-            $me->tokens()->delete();
-            $token = $me->createToken('app')->plainTextToken;
+        if (auth()->attempt(['email' => $email, 'password' => $password])) {
+            $user = User::findOrFail(auth()->id());
+            $user->tokens()->delete();
+            
+            $token = $user->createToken($user->uuid)->plainTextToken;
 
             return response()->sendResponse(['token' => $token], null, 'Logged in successfully');
         }
 
-        throw new AuthenticationException('Wrong credentials');
+        throw ValidationException::withMessages(['The provided credentials are incorrect.']);
     }
 
     /**
