@@ -18,8 +18,10 @@ class CreateUsersTable extends Migration
             $table->uuid('uuid')->unique();
 
             $table->string('name');
+            $table->string('username')->unique();
             $table->string('email')->unique();
             $table->string('password');
+            $table->enum('role', ['REGULAR', 'APPROVER'])->default('REGULAR');
             
             $table->rememberToken();
             
