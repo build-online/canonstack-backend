@@ -21,9 +21,7 @@ class PostLoginController extends Controller
         $data = $this->validateRequest($request);
 
         if (auth()->attempt($data)) {
-            /** @var User $me */
             $me = auth()->user();
-
             $me->tokens()->delete();
             $token = $me->createToken('app')->plainTextToken;
 

@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\V1\Auth\PostLoginController;
+use App\Http\Controllers\Api\V1\Auth\PostLogoutController;
 use App\Http\Controllers\Api\V1\Auth\PostRegisterController;
 
 /*
@@ -25,5 +26,8 @@ Route::group(['prefix' => 'v1'], function () {
     });
 
     Route::group(['middleware' => ['auth:sanctum']], function () {
+        Route::prefix('auth')->group(function () {
+            Route::post('logout', PostLogoutController::class)->name('v1.auth.logout');
+        });
     });
 });
