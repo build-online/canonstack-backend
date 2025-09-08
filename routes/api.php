@@ -2,6 +2,10 @@
 
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\Api\V1\Auth\PostLoginController;
+use App\Http\Controllers\Api\V1\Auth\PostLogoutController;
+use App\Http\Controllers\Api\V1\Auth\PostRegisterController;
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -16,6 +20,14 @@ use Illuminate\Support\Facades\Route;
 Route::redirect('v1/sanctum/csrf-cookie', '/sanctum/csrf-cookie');
 
 Route::group(['prefix' => 'v1'], function () {
+    Route::prefix('auth')->group(function () {
+        Route::post('login', PostLoginController::class)->name('v1.auth.login');
+        Route::post('register', PostRegisterController::class)->name('v1.auth.register');
+    });
+
     Route::group(['middleware' => ['auth:sanctum']], function () {
+        Route::prefix('auth')->group(function () {
+            Route::post('logout', PostLogoutController::class)->name('v1.auth.logout');
+        });
     });
 });
