@@ -27,35 +27,26 @@ class ModelsService
         DB::beginTransaction();
         
         try {
-            // Validate ZIP file
             $this->validateZipFile($zipFile);
-            
-            // Generate unique file reference
+
+            // Upload file to storage
             $fileRef = $this->generateFileReference($zipFile);
-            
-            // Upload to storage
             $this->uploadToStorage($zipFile, $fileRef);
             
-            // Create repository record
-            $repository = $this->createRepository($data, $fileRef);
-            
-            // Create model record
+            // Create database records
+            $repository = $this->createRepository($data, $fileRef);            
             $model = $this->createModel($repository);
-            
-            // Attach tags
             $this->attachTags($repository, $data['tag_ids']);
             
             // Extract ZIP contents and store file structure
             $this->fileSystemService->extractAndStoreZipContents($repository);
             
             DB::commit();
-            
-            return $model->load(['repository.user', 'repository.category', 'repository.religiousMovement', 'repository.tags', 'repository.files']);
+            return $model;
             
         } catch (Exception $e) {
             DB::rollBack();
             
-            // Clean up uploaded file if it exists
             if (isset($fileRef)) {
                 Storage::delete($fileRef);
             }
@@ -76,7 +67,6 @@ class ModelsService
             throw new Exception('Invalid ZIP file or corrupted archive.');
         }
         
-        // Check if ZIP has content
         if ($zip->numFiles === 0) {
             $zip->close();
             throw new Exception('ZIP file is empty.');
