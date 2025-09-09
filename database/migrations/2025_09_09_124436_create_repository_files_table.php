@@ -15,16 +15,15 @@ return new class extends Migration
             $table->id();
             $table->uuid('uuid')->unique();
             $table->foreignId('repository_id')->constrained('repositories')->onDelete('cascade');
-            $table->string('name'); // file/folder name
-            $table->string('path', 500); // full path within ZIP (reduced for index compatibility)
-            $table->enum('type', ['file', 'folder']); // file or folder
-            $table->bigInteger('size')->nullable(); // file size in bytes (null for folders)
-            $table->string('mime_type')->nullable(); // MIME type for files (null for folders)
-            $table->string('parent_path', 500)->nullable(); // parent folder path (reduced for index compatibility)
-            $table->text('file_ref')->nullable(); // Wasabi path for individual file (null for folders)
+            $table->string('name');
+            $table->string('path', 500);
+            $table->enum('type', ['file', 'folder']);
+            $table->bigInteger('size')->nullable();
+            $table->string('mime_type')->nullable();
+            $table->string('parent_path', 500)->nullable();
+            $table->text('file_ref')->nullable(); 
             $table->timestamps();
             
-            // Indexes for performance - simplified
             $table->index(['repository_id', 'type']);
             $table->index('repository_id');
         });

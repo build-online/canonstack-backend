@@ -17,7 +17,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->string('name');
             $table->text('description');
-            $table->string('file_ref'); // Reference to file in Wasabi bucket
+            $table->string('file_ref');
             $table->enum('status', ['PENDING_REVIEW', 'ACCEPTED', 'DECLINED'])->default('PENDING_REVIEW');
             $table->foreignId('category_id')->constrained('categories')->onDelete('cascade');
             $table->foreignId('approved_by')->nullable()->constrained('users')->onDelete('set null');
