@@ -17,7 +17,6 @@ class GetFileTreeController extends Controller
     public function __construct(FileSystemService $fileSystemService)
     {
         $this->fileSystemService = $fileSystemService;
-        $this->middleware('auth:sanctum');
     }
 
     /**
