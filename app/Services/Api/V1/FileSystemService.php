@@ -4,12 +4,12 @@ namespace App\Services\Api\V1;
 
 use App\Models\Repository;
 use App\Models\RepositoryFile;
+use App\Utils\FileSystemUtils;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use ZipArchive;
 use Exception;
-use finfo;
 
 class FileSystemService
 {
@@ -80,19 +80,18 @@ class FileSystemService
             $this->uploadIndividualFiles($repository, $fileStructure, $tempZipPath);
             
             // Clean up temporary files immediately after upload
-            $this->cleanupTemporaryFiles($extractPath); // Clean up extraction directory
-            $this->cleanupTemporaryFiles($tempZipPath); // Clean up ZIP file
+            FileSystemUtils::cleanupTemporaryFiles($extractPath); // Clean up extraction directory
+            FileSystemUtils::cleanupTemporaryFiles($tempZipPath); // Clean up ZIP file
             
             DB::commit();
         } catch (Exception $e) {
             DB::rollBack();
             
-            // Clean up temporary files on error
             if ($tempZipPath) {
-                $this->cleanupTemporaryFiles($tempZipPath);
+                FileSystemUtils::cleanupTemporaryFiles($tempZipPath);
             }
             if ($extractPath) {
-                $this->cleanupTemporaryFiles($extractPath);
+                FileSystemUtils::cleanupTemporaryFiles($extractPath);
             }
             
             throw $e;
@@ -155,14 +154,7 @@ class FileSystemService
      */
     public function formatBytes(int $bytes, int $precision = 2): string
     {
-        if ($bytes === 0) {
-            return '0 B';
-        }
-        
-        $units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-        $factor = floor(log($bytes, 1024));
-        
-        return round($bytes / (1024 ** $factor), $precision) . ' ' . $units[$factor];
+        return FileSystemUtils::formatBytes($bytes, $precision);
     }
 
     /**
@@ -222,7 +214,7 @@ class FileSystemService
             }
 
             $encoding = mb_detect_encoding($content, ['UTF-8', 'ISO-8859-1', 'ASCII'], true);
-            $isText = $encoding !== false && $this->isTextContent($content);
+            $isText = $encoding !== false && FileSystemUtils::isTextContent($content);
 
             if (!$isText) {
                 throw new Exception('File appears to be binary and cannot be previewed as text.');
@@ -297,34 +289,6 @@ class FileSystemService
         return false;
     }
 
-    /**
-     * Check if content appears to be text (not binary).
-     */
-    private function isTextContent(string $content): bool
-    {
-        if (strpos($content, "\0") !== false) {
-            return false;
-        }
-
-        $printableChars = 0;
-        $totalChars = strlen($content);
-        
-        if ($totalChars === 0) {
-            return true;
-        }
-
-        for ($i = 0; $i < min($totalChars, 1000); $i++) {
-            $char = ord($content[$i]);
-            // Printable ASCII (32-126) + common whitespace (9, 10, 13)
-            if (($char >= 32 && $char <= 126) || in_array($char, [9, 10, 13])) {
-                $printableChars++;
-            }
-        }
-
-        $printableRatio = $printableChars / min($totalChars, 1000);
-        
-        return $printableRatio >= 0.9;
-    }
 
     /**
      * Download ZIP file temporarily for processing.
@@ -353,14 +317,13 @@ class FileSystemService
         $result = $zip->open($zipPath);
         
         if (!$result) {
-            throw new Exception('Failed to open ZIP file: ' . $this->getZipError($result));
+            throw new Exception('Failed to open ZIP file: ' . FileSystemUtils::getZipError($result));
         }
         
         $fileStructure = [];
         $totalSize = 0;
         $extractPath = storage_path('app/temp/' . Str::uuid());
         
-        // Create extraction directory
         if (!mkdir($extractPath, 0755, true)) {
             $zip->close();
             throw new Exception('Failed to create extraction directory.');
@@ -377,14 +340,12 @@ class FileSystemService
                 $stat = $zip->statIndex($i);
                 $filename = $stat['name'];
                 
-                // Skip system/hidden files
-                if ($this->isSystemFile($filename)) {
+                if (FileSystemUtils::isSystemFile($filename)) {
                     continue;
                 }
                 
-                // Security validations
-                $this->validateFilePath($filename);
-                $this->validateFileSize($stat['size']);
+                FileSystemUtils::validateFilePath($filename);
+                FileSystemUtils::validateFileSize($stat['size'], $this->contentType);
                 
                 $totalSize += $stat['size'];
                 $maxTotalSize = $this->getConfig('max_total_extracted_size');
@@ -394,7 +355,6 @@ class FileSystemService
                     throw new Exception("Total extracted size exceeds limit of {$maxTotalSizeLabel}.");
                 }
                 
-                // Determine if it's a folder or file
                 $isFolder = substr($filename, -1) === '/';
                 
                 if ($isFolder) {
@@ -404,29 +364,22 @@ class FileSystemService
                         'type' => 'folder',
                         'size' => null,
                         'mime_type' => null,
-                        'parent_path' => $this->getParentPath($filename),
+                        'parent_path' => FileSystemUtils::getParentPath($filename),
                         'file_ref' => null,
                     ];
                 } else {
-                    // Extract individual file
                     $extractedFilePath = $extractPath . '/' . $filename;
-                    
-                    // Ensure directory exists
                     $dir = dirname($extractedFilePath);
                     if (!is_dir($dir)) {
                         mkdir($dir, 0755, true);
                     }
                     
-                    // Extract file
                     if (!$zip->extractTo($extractPath, $filename)) {
                         throw new Exception('Failed to extract file: ' . $filename);
                     }
                     
-                    // Validate file extension
-                    $this->validateFileExtension($filename);
-                    
-                    // Get MIME type
-                    $mimeType = $this->getMimeType($extractedFilePath);
+                    FileSystemUtils::validateFileExtension($filename, $this->contentType);
+                    $mimeType = FileSystemUtils::getMimeType($extractedFilePath);
                     
                     $fileStructure[] = [
                         'name' => basename($filename),
@@ -434,8 +387,8 @@ class FileSystemService
                         'type' => 'file',
                         'size' => $stat['size'],
                         'mime_type' => $mimeType,
-                        'parent_path' => $this->getParentPath($filename),
-                        'file_ref' => null, // Will be set when uploaded to Wasabi
+                        'parent_path' => FileSystemUtils::getParentPath($filename),
+                        'file_ref' => null,
                         'local_path' => $extractedFilePath,
                     ];
                 }
@@ -453,133 +406,12 @@ class FileSystemService
             
         } catch (Exception $e) {
             $zip->close();
-            $this->cleanupTemporaryFiles($extractPath);
+            FileSystemUtils::cleanupTemporaryFiles($extractPath);
             throw $e;
         }
     }
 
-    /**
-     * Check if file is a system/hidden file that should be skipped.
-     */
-    private function isSystemFile(string $filename): bool
-    {
-        // Check if filtering is enabled
-        if (!config('filesystem_limits.system_file_filtering.enabled', true)) {
-            return false;
-        }
 
-        // Get just the filename and directory path
-        $basename = basename($filename);
-        $directory = dirname($filename);
-        
-        // Check blocked directories first (skip entire directories)
-        $blockedDirs = config('filesystem_limits.system_file_filtering.blocked_directories', []);
-        foreach ($blockedDirs as $blockedDir) {
-            if (strpos($filename, $blockedDir . '/') === 0 || $directory === $blockedDir) {
-                return true;
-            }
-        }
-        
-        // Check exact filename matches (case insensitive)
-        $exactMatches = config('filesystem_limits.system_file_filtering.exact_matches', []);
-        foreach ($exactMatches as $systemFile) {
-            if (strcasecmp($basename, $systemFile) === 0) {
-                return true;
-            }
-        }
-        
-        // Check file extension filters
-        $extension = strtolower(pathinfo($basename, PATHINFO_EXTENSION));
-        $blockedExtensions = config('filesystem_limits.system_file_filtering.blocked_extensions', []);
-        if ($extension && in_array($extension, $blockedExtensions)) {
-            return true;
-        }
-        
-        // Check regex patterns
-        $patterns = config('filesystem_limits.system_file_filtering.regex_patterns', []);
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $filename)) {
-                return true;
-            }
-        }
-        
-        // Handle dot files (files starting with .)
-        if (strpos($basename, '.') === 0) {
-            $allowedDotFiles = config('filesystem_limits.system_file_filtering.allowed_dot_files', []);
-            
-            // Convert to lowercase for comparison
-            $allowedDotFilesLower = array_map('strtolower', $allowedDotFiles);
-            
-            if (!in_array(strtolower($basename), $allowedDotFilesLower)) {
-                return true; // Filter out unknown dot files
-            }
-        }
-        
-        return false;
-    }
-
-    /**
-     * Validate file path for security (prevent ZIP slip attacks).
-     */
-    private function validateFilePath(string $path): void
-    {
-        // Check for directory traversal attempts
-        if (strpos($path, '..') !== false) {
-            throw new Exception('Invalid file path: directory traversal detected.');
-        }
-        
-        // Check for absolute paths
-        if (strpos($path, '/') === 0 || strpos($path, '\\') === 0) {
-            throw new Exception('Invalid file path: absolute paths not allowed.');
-        }
-        
-        // Check for Windows drive letters
-        if (preg_match('/^[a-zA-Z]:/', $path)) {
-            throw new Exception('Invalid file path: drive letters not allowed.');
-        }
-        
-        // Check path length
-        if (strlen($path) > 255) {
-            throw new Exception('File path too long.');
-        }
-    }
-
-    /**
-     * Validate file size.
-     */
-    private function validateFileSize(int $size): void
-    {
-        $maxSize = $this->getConfig('max_individual_file_size');
-        $maxSizeLabel = $this->getSizeLabel('max_individual_file_size');
-        
-        if ($size > $maxSize) {
-            throw new Exception("File size exceeds maximum allowed size of {$maxSizeLabel}.");
-        }
-    }
-
-    /**
-     * Validate file extension.
-     */
-    private function validateFileExtension(string $filename): void
-    {
-        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-        $allowedExtensions = $this->getAllowedExtensions();
-        
-        if (!empty($extension) && !in_array($extension, $allowedExtensions)) {
-            throw new Exception("File type not allowed: {$extension}. Allowed types for {$this->contentType}: " . implode(', ', array_slice($allowedExtensions, 0, 10)) . (count($allowedExtensions) > 10 ? '...' : ''));
-        }
-    }
-
-    /**
-     * Get parent path from file path.
-     */
-    private function getParentPath(string $path): ?string
-    {
-        $path = rtrim($path, '/');
-        $parentPath = dirname($path);
-        
-        return ($parentPath === '.' || $parentPath === '') ? null : $parentPath;
-    }
 
     /**
      * Ensure all parent folders exist in the structure.
@@ -599,12 +431,12 @@ class FileSystemService
                     'type' => 'folder',
                     'size' => null,
                     'mime_type' => null,
-                    'parent_path' => $this->getParentPath($parentPath),
+                    'parent_path' => FileSystemUtils::getParentPath($parentPath),
                     'file_ref' => null,
                 ];
                 
                 $existingPaths[] = $parentPath;
-                $parentPath = $this->getParentPath($parentPath);
+                $parentPath = FileSystemUtils::getParentPath($parentPath);
             }
         }
         
@@ -646,7 +478,6 @@ class FileSystemService
                     'private'
                 );
                 
-                // Update database record
                 RepositoryFile::where('repository_id', $repository->id)
                             ->where('path', $item['path'])
                             ->update(['file_ref' => $fileRef]);
@@ -667,81 +498,4 @@ class FileSystemService
         return "models/{$timestamp}/{$repository->uuid}/{$uuid}{$extension}";
     }
 
-    /**
-     * Get MIME type of file.
-     */
-    private function getMimeType(string $filePath): ?string
-    {
-        if (!file_exists($filePath)) {
-            return null;
-        }
-        
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
-        return $finfo->file($filePath) ?: null;
-    }
-
-    /**
-     * Clean up temporary files.
-     */
-    private function cleanupTemporaryFiles(string $path): void
-    {
-        if (is_file($path)) {
-            unlink($path);
-        } elseif (is_dir($path)) {
-            $this->deleteDirectory($path);
-        }
-    }
-
-    /**
-     * Recursively delete directory.
-     */
-    private function deleteDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        
-        $files = array_diff(scandir($dir), ['.', '..']);
-        
-        foreach ($files as $file) {
-            $path = $dir . '/' . $file;
-            is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
-        }
-        
-        rmdir($dir);
-    }
-
-    /**
-     * Get ZIP error message.
-     */
-    private function getZipError(int $code): string
-    {
-        switch ($code) {
-            case ZipArchive::ER_OK: return 'No error';
-            case ZipArchive::ER_MULTIDISK: return 'Multi-disk zip archives not supported';
-            case ZipArchive::ER_RENAME: return 'Renaming temporary file failed';
-            case ZipArchive::ER_CLOSE: return 'Closing zip archive failed';
-            case ZipArchive::ER_SEEK: return 'Seek error';
-            case ZipArchive::ER_READ: return 'Read error';
-            case ZipArchive::ER_WRITE: return 'Write error';
-            case ZipArchive::ER_CRC: return 'CRC error';
-            case ZipArchive::ER_ZIPCLOSED: return 'Containing zip archive was closed';
-            case ZipArchive::ER_NOENT: return 'No such file';
-            case ZipArchive::ER_EXISTS: return 'File already exists';
-            case ZipArchive::ER_OPEN: return 'Can\'t open file';
-            case ZipArchive::ER_TMPOPEN: return 'Failure to create temporary file';
-            case ZipArchive::ER_ZLIB: return 'Zlib error';
-            case ZipArchive::ER_MEMORY: return 'Memory allocation failure';
-            case ZipArchive::ER_CHANGED: return 'Entry has been changed';
-            case ZipArchive::ER_COMPNOTSUPP: return 'Compression method not supported';
-            case ZipArchive::ER_EOF: return 'Premature EOF';
-            case ZipArchive::ER_INVAL: return 'Invalid argument';
-            case ZipArchive::ER_NOZIP: return 'Not a zip archive';
-            case ZipArchive::ER_INTERNAL: return 'Internal error';
-            case ZipArchive::ER_INCONS: return 'Zip archive inconsistent';
-            case ZipArchive::ER_REMOVE: return 'Can\'t remove file';
-            case ZipArchive::ER_DELETED: return 'Entry has been deleted';
-            default: return 'Unknown error code: ' . $code;
-        }
-    }
 }
