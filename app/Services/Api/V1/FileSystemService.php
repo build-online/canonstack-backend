@@ -21,6 +21,17 @@ class FileSystemService
     }
 
     /**
+     * Update the content type for this service instance.
+     * 
+     * @param string $contentType The new content type ('models' or 'datasets')
+     * @return void
+     */
+    public function setContentType(string $contentType): void
+    {
+        $this->contentType = $contentType;
+    }
+
+    /**
      * Get configuration value for current content type.
      */
     private function getConfig(string $key, mixed $default = null): mixed
@@ -51,30 +62,37 @@ class FileSystemService
     {
         DB::beginTransaction();
         
+        $tempZipPath = null;
+        $extractPath = null;
+        
         try {
-            // Download ZIP from Wasabi to temporary location
-            $tempZipPath = $this->downloadZipTemporarily($repository);
-            
             // Extract and validate ZIP contents
-            $fileStructure = $this->extractZipSecurely($tempZipPath, $repository);
+            $tempZipPath = $this->downloadZipTemporarily($repository);
+            $extractionResult = $this->extractZipSecurely($tempZipPath, $repository);
+            
+            $fileStructure = $extractionResult['files'];
+            $extractPath = $extractionResult['extract_path'];
             
             // Store file structure in database
             $this->storeFileStructure($repository, $fileStructure);
             
-            // Upload individual files to Wasabi
+            // Upload individual files to storage
             $this->uploadIndividualFiles($repository, $fileStructure, $tempZipPath);
             
-            // Clean up temporary files
-            $this->cleanupTemporaryFiles($tempZipPath);
+            // Clean up temporary files immediately after upload
+            $this->cleanupTemporaryFiles($extractPath); // Clean up extraction directory
+            $this->cleanupTemporaryFiles($tempZipPath); // Clean up ZIP file
             
             DB::commit();
-            
         } catch (Exception $e) {
             DB::rollBack();
             
-            // Clean up on error
-            if (isset($tempZipPath)) {
+            // Clean up temporary files on error
+            if ($tempZipPath) {
                 $this->cleanupTemporaryFiles($tempZipPath);
+            }
+            if ($extractPath) {
+                $this->cleanupTemporaryFiles($extractPath);
             }
             
             throw $e;
@@ -86,15 +104,15 @@ class FileSystemService
      */
     public function getFileStructure(Repository $repository, ?string $parentPath = null): array
     {
-        $query = $repository->files();
+        $fielsQuery = $repository->files();
         
         if ($parentPath === null) {
-            $query->root();
+            $fielsQuery->root();
         } else {
-            $query->where('parent_path', $parentPath);
+            $fielsQuery->where('parent_path', $parentPath);
         }
         
-        $files = $query->orderBy('type', 'desc') // folders first
+        $files = $fielsQuery->orderBy('type', 'desc') // folders first
                       ->orderBy('name', 'asc')
                       ->get();
         
@@ -115,16 +133,8 @@ class FileSystemService
             ];
         })->toArray();
         
-        // Generate breadcrumbs for navigation
-        $breadcrumbs = $this->generateBreadcrumbs($repository, $parentPath);
-        
-        // Get folder statistics
-        $stats = $this->getFolderStats($repository, $parentPath);
-        
         return [
             'items' => $items,
-            'breadcrumbs' => $breadcrumbs,
-            'stats' => $stats,
             'current_path' => $parentPath,
             'is_root' => $parentPath === null,
         ];
@@ -138,66 +148,6 @@ class FileSystemService
         return $repository->files()
                          ->where('parent_path', $folderPath)
                          ->count();
-    }
-
-    /**
-     * Generate breadcrumbs for navigation.
-     */
-    private function generateBreadcrumbs(Repository $repository, ?string $currentPath): array
-    {
-        $breadcrumbs = [
-            [
-                'name' => 'Root',
-                'path' => null,
-                'is_current' => $currentPath === null,
-            ]
-        ];
-        
-        if ($currentPath) {
-            $pathParts = explode('/', $currentPath);
-            $buildPath = '';
-            
-            foreach ($pathParts as $index => $part) {
-                $buildPath .= ($index > 0 ? '/' : '') . $part;
-                $isLast = $index === count($pathParts) - 1;
-                
-                $breadcrumbs[] = [
-                    'name' => $part,
-                    'path' => $buildPath,
-                    'is_current' => $isLast,
-                ];
-            }
-        }
-        
-        return $breadcrumbs;
-    }
-
-    /**
-     * Get statistics for current folder.
-     */
-    private function getFolderStats(Repository $repository, ?string $parentPath): array
-    {
-        $query = $repository->files();
-        
-        if ($parentPath === null) {
-            $query->root();
-        } else {
-            $query->where('parent_path', $parentPath);
-        }
-        
-        $files = $query->get();
-        
-        $folderCount = $files->where('type', 'folder')->count();
-        $fileCount = $files->where('type', 'file')->count();
-        $totalSize = $files->where('type', 'file')->sum('size');
-        
-        return [
-            'folder_count' => $folderCount,
-            'file_count' => $fileCount,
-            'total_files' => $folderCount + $fileCount,
-            'total_size' => $totalSize,
-            'total_size_human' => $this->formatBytes($totalSize),
-        ];
     }
 
     /**
@@ -250,7 +200,10 @@ class FileSystemService
             throw new Exception('Cannot get content of folder or file without reference.');
         }
 
-        // Check if file is too large for preview
+        if (!$this->isPreviewableFile($file)) {
+            throw new Exception('File type is not previewable. Supported types: text, code, config files.');
+        }
+
         $maxPreviewSize = 1024 * 1024; // 1MB limit for preview
         $isTruncated = false;
         $previewSize = $file->size;
@@ -260,22 +213,14 @@ class FileSystemService
             $isTruncated = true;
         }
 
-        // Check if file type is previewable
-        if (!$this->isPreviewableFile($file)) {
-            throw new Exception('File type is not previewable. Supported types: text, code, config files.');
-        }
-
         try {
-            // Get file content from storage
             $content = Storage::get($file->file_ref);
             
-            // If file is too large, truncate it
             if ($isTruncated) {
                 $content = substr($content, 0, $maxPreviewSize);
                 $content .= "\n\n... [Content truncated - Download full file to see complete content] ...";
             }
 
-            // Detect encoding and validate text
             $encoding = mb_detect_encoding($content, ['UTF-8', 'ISO-8859-1', 'ASCII'], true);
             $isText = $encoding !== false && $this->isTextContent($content);
 
@@ -283,12 +228,10 @@ class FileSystemService
                 throw new Exception('File appears to be binary and cannot be previewed as text.');
             }
 
-            // Convert to UTF-8 if needed
             if ($encoding && $encoding !== 'UTF-8') {
                 $content = mb_convert_encoding($content, 'UTF-8', $encoding);
             }
 
-            // Count lines
             $lineCount = substr_count($content, "\n") + 1;
 
             return [
@@ -300,7 +243,7 @@ class FileSystemService
                 'preview_size' => strlen($content),
             ];
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             if (strpos($e->getMessage(), 'File appears to be binary') !== false) {
                 throw $e;
             }
@@ -313,41 +256,24 @@ class FileSystemService
      */
     public function isPreviewableFile(RepositoryFile $file): bool
     {
-        // Get file extension
         $extension = strtolower(pathinfo($file->name, PATHINFO_EXTENSION));
         
-        // Define previewable extensions
         $previewableExtensions = [
-            // Text files
             'txt', 'text', 'readme', 'md', 'markdown', 'rst',
-            
-            // Code files
             'py', 'js', 'ts', 'php', 'java', 'cpp', 'c', 'h', 'cs', 'rb', 'go', 'rs', 'swift',
             'html', 'htm', 'css', 'scss', 'sass', 'less',
-            
-            // Config files
             'json', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'config', 'conf',
             'xml', 'plist', 'properties',
-            
-            // Data files
             'csv', 'tsv', 'sql', 'log',
-            
-            // Documentation
             'license', 'changelog', 'authors', 'contributors', 'notice',
-            
-            // Shell scripts
             'sh', 'bash', 'zsh', 'fish', 'ps1', 'bat', 'cmd',
-            
-            // Other common text formats
             'dockerfile', 'gitignore', 'editorconfig', 'htaccess',
         ];
 
-        // Check by extension
         if (in_array($extension, $previewableExtensions)) {
             return true;
         }
 
-        // Check by MIME type
         if ($file->mime_type) {
             $textMimeTypes = [
                 'text/plain', 'text/html', 'text/css', 'text/javascript',
@@ -363,7 +289,6 @@ class FileSystemService
             }
         }
 
-        // Check common files without extensions
         $commonTextFiles = ['readme', 'license', 'changelog', 'authors', 'dockerfile', 'makefile'];
         if (in_array(strtolower($file->name), $commonTextFiles)) {
             return true;
@@ -377,20 +302,18 @@ class FileSystemService
      */
     private function isTextContent(string $content): bool
     {
-        // Check for null bytes (common in binary files)
         if (strpos($content, "\0") !== false) {
             return false;
         }
 
-        // Check if most characters are printable
         $printableChars = 0;
         $totalChars = strlen($content);
         
         if ($totalChars === 0) {
-            return true; // Empty file is considered text
+            return true;
         }
 
-        for ($i = 0; $i < min($totalChars, 1000); $i++) { // Check first 1000 chars
+        for ($i = 0; $i < min($totalChars, 1000); $i++) {
             $char = ord($content[$i]);
             // Printable ASCII (32-126) + common whitespace (9, 10, 13)
             if (($char >= 32 && $char <= 126) || in_array($char, [9, 10, 13])) {
@@ -400,7 +323,6 @@ class FileSystemService
 
         $printableRatio = $printableChars / min($totalChars, 1000);
         
-        // Consider it text if 90% or more characters are printable
         return $printableRatio >= 0.9;
     }
 
@@ -411,12 +333,10 @@ class FileSystemService
     {
         $tempPath = storage_path('app/temp/' . Str::uuid() . '.zip');
         
-        // Ensure temp directory exists
         if (!file_exists(dirname($tempPath))) {
             mkdir(dirname($tempPath), 0755, true);
         }
         
-        // Download from storage
         $zipContent = Storage::get($repository->file_ref);
         file_put_contents($tempPath, $zipContent);
         
@@ -425,13 +345,14 @@ class FileSystemService
 
     /**
      * Extract ZIP file securely with validation.
+     * Returns array with file structure and extraction path for cleanup.
      */
     private function extractZipSecurely(string $zipPath, Repository $repository): array
     {
         $zip = new ZipArchive();
         $result = $zip->open($zipPath);
         
-        if ($result !== true) {
+        if (!$result) {
             throw new Exception('Failed to open ZIP file: ' . $this->getZipError($result));
         }
         
@@ -525,7 +446,10 @@ class FileSystemService
             // Create missing parent folders
             $fileStructure = $this->ensureParentFolders($fileStructure);
             
-            return $fileStructure;
+            return [
+                'files' => $fileStructure,
+                'extract_path' => $extractPath
+            ];
             
         } catch (Exception $e) {
             $zip->close();
@@ -707,7 +631,7 @@ class FileSystemService
     }
 
     /**
-     * Upload individual files to Wasabi.
+     * Upload individual files to Storage.
      */
     private function uploadIndividualFiles(Repository $repository, array $fileStructure, string $tempZipPath): void
     {
@@ -715,7 +639,6 @@ class FileSystemService
             if ($item['type'] === 'file' && isset($item['local_path'])) {
                 $fileRef = $this->generateIndividualFileRef($repository, $item['path']);
                 
-                // Upload to storage
                 Storage::putFileAs(
                     dirname($fileRef),
                     new \Illuminate\Http\File($item['local_path']),

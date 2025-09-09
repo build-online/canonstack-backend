@@ -32,8 +32,6 @@ class GetFilesController extends Controller
             
             return response()->sendResponse([
                 'items' => $navigationData['items'],
-                'breadcrumbs' => $navigationData['breadcrumbs'],
-                'stats' => $navigationData['stats'],
                 'current_path' => $navigationData['current_path'],
                 'is_root' => $navigationData['is_root'],
                 'repository' => [
