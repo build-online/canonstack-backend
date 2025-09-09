@@ -203,7 +203,7 @@ class FileSystemService
     /**
      * Format bytes to human readable format.
      */
-    private function formatBytes(int $bytes, int $precision = 2): string
+    public function formatBytes(int $bytes, int $precision = 2): string
     {
         if ($bytes === 0) {
             return '0 B';
@@ -311,7 +311,7 @@ class FileSystemService
     /**
      * Check if file type is previewable.
      */
-    private function isPreviewableFile(RepositoryFile $file): bool
+    public function isPreviewableFile(RepositoryFile $file): bool
     {
         // Get file extension
         $extension = strtolower(pathinfo($file->name, PATHINFO_EXTENSION));

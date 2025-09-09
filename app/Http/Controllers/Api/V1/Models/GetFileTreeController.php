@@ -25,9 +25,7 @@ class GetFileTreeController extends Controller
      */
     public function __invoke(Request $request, string $uuid): JsonResponse
     {
-        $model = ModelRepository::where('uuid', $uuid)
-            ->with(['repository'])
-            ->firstOrFail();
+        $model = ModelRepository::where('uuid', $uuid)->firstOrFail();
         $repository = $model->repository;
         $maxDepth = $request->query('max_depth', 5);
 
@@ -77,7 +75,7 @@ class GetFileTreeController extends Controller
                 'parent_path' => $file->parent_path,
                 'created_at' => $file->created_at->toISOString(),
                 'is_downloadable' => $file->type === 'file' && !empty($file->file_ref),
-                'is_previewable' => $file->type === 'file' ? $this->isPreviewableFile($file) : false,
+                'is_previewable' => $file->type === 'file' ? $this->fileSystemService->isPreviewableFile($file) : false,
                 'depth' => $currentDepth,
             ];
 
@@ -120,71 +118,8 @@ class GetFileTreeController extends Controller
             'total_files' => $fileCount,
             'total_items' => $folderCount + $fileCount,
             'total_size' => $totalSize,
-            'total_size_human' => $this->formatBytes($totalSize),
-            'max_depth' => $maxDepth + 1, // +1 because root is depth 0
+            'total_size_human' => $this->fileSystemService->formatBytes($totalSize),
+            'max_depth' => $maxDepth + 1,
         ];
-    }
-
-    /**
-     * Check if file type is previewable.
-     */
-    private function isPreviewableFile($file): bool
-    {
-        // Get file extension
-        $extension = strtolower(pathinfo($file->name, PATHINFO_EXTENSION));
-        
-        // Define previewable extensions
-        $previewableExtensions = [
-            // Text files
-            'txt', 'text', 'readme', 'md', 'markdown', 'rst',
-            
-            // Code files
-            'py', 'js', 'ts', 'php', 'java', 'cpp', 'c', 'h', 'cs', 'rb', 'go', 'rs', 'swift',
-            'html', 'htm', 'css', 'scss', 'sass', 'less',
-            
-            // Config files
-            'json', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'config', 'conf',
-            'xml', 'plist', 'properties',
-            
-            // Data files
-            'csv', 'tsv', 'sql', 'log',
-            
-            // Documentation
-            'license', 'changelog', 'authors', 'contributors', 'notice',
-            
-            // Shell scripts
-            'sh', 'bash', 'zsh', 'fish', 'ps1', 'bat', 'cmd',
-            
-            // Other common text formats
-            'dockerfile', 'gitignore', 'editorconfig', 'htaccess',
-        ];
-
-        // Check by extension
-        if (in_array($extension, $previewableExtensions)) {
-            return true;
-        }
-
-        // Check common files without extensions
-        $commonTextFiles = ['readme', 'license', 'changelog', 'authors', 'dockerfile', 'makefile'];
-        if (in_array(strtolower($file->name), $commonTextFiles)) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Format bytes to human readable format.
-     */
-    private function formatBytes(int $bytes, int $precision = 2): string
-    {
-        if ($bytes === 0) {
-            return '0 B';
-        }
-        
-        $units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-        $factor = floor(log($bytes, 1024));
-        
-        return round($bytes / (1024 ** $factor), $precision) . ' ' . $units[$factor];
     }
 }
