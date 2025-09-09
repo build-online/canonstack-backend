@@ -9,6 +9,13 @@ use App\Http\Controllers\Api\V1\Auth\PostLoginController;
 use App\Http\Controllers\Api\V1\Auth\PostLogoutController;
 use App\Http\Controllers\Api\V1\Auth\PostRegisterController;
 use App\Http\Controllers\Api\V1\Auth\RequestPasswordResetController;
+use App\Http\Controllers\Api\V1\Models\PostModelController;
+use App\Http\Controllers\Api\V1\Models\GetModelController;
+use App\Http\Controllers\Api\V1\Models\GetFilesController;
+use App\Http\Controllers\Api\V1\Models\GetFileTreeController;
+use App\Http\Controllers\Api\V1\Models\GetFileContentController;
+use App\Http\Controllers\Api\V1\Models\DownloadFileController;
+use App\Http\Controllers\Api\V1\Models\DownloadZipController;
 
 /*
 |--------------------------------------------------------------------------
@@ -34,6 +41,23 @@ Route::group(['prefix' => 'v1'], function () {
             Route::post('logout', PostLogoutController::class)->name('v1.auth.logout');
             Route::get('me', GetMeController::class)->name('v1.auth.me');
             Route::patch('change-password', ChangePasswordController::class)->name('v1.auth.change-password');
+        });
+     });
+
+     Route::group(['middleware' => ['auth:sanctum']], function () {
+         // Model routes
+        Route::prefix('models')->group(function () {
+            Route::post('/', PostModelController::class)->name('v1.models.store');
+            Route::get('{uuid}', GetModelController::class)->name('v1.models.show');
+            Route::get('{uuid}/files', GetFilesController::class)->name('v1.models.files.index');
+            Route::get('{uuid}/tree', GetFileTreeController::class)->name('v1.models.tree.show');
+            Route::get('{uuid}/download', DownloadZipController::class)->name('v1.models.download');
+            
+            // File routes
+            Route::prefix('files')->group(function () {
+                Route::get('{uuid}/download', DownloadFileController::class)->name('v1.models.files.download');
+                Route::get('{uuid}/content', GetFileContentController::class)->name('v1.models.files.content');
+            });
         });
      });
 });
