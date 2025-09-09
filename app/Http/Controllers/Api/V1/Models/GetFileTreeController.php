@@ -17,6 +17,7 @@ class GetFileTreeController extends Controller
     public function __construct(FileSystemService $fileSystemService)
     {
         $this->fileSystemService = $fileSystemService;
+        $this->middleware('auth:sanctum');
     }
 
     /**
@@ -25,39 +26,17 @@ class GetFileTreeController extends Controller
      */
     public function __invoke(Request $request, string $uuid): JsonResponse
     {
-        $model = ModelRepository::where('uuid', $uuid)->firstOrFail();
-        if (!$model) {
-            return response()->sendError(
-                'Model not found.',
-                404
-            );
-        }
-
+        $model = ModelRepository::where('uuid', $uuid)
+            ->with(['repository'])
+            ->firstOrFail();
         $repository = $model->repository;
-        if (!$repository) {
-            return response()->sendError(
-                'Repository not found.',
-                404
-            );
-        }
-
-        // Optional: Limit tree depth to prevent large responses
         $maxDepth = $request->query('max_depth', 5);
-        
+
         try {
-            $tree = $this->buildFileTree($repository, null, 0, $maxDepth);
-            $stats = $this->getRepositoryStats($repository);
-            
             return response()->sendResponse([
-                'tree' => $tree,
-                'stats' => $stats,
-                'repository' => [
-                    'uuid' => $repository->uuid,
-                    'name' => $repository->name,
-                    'status' => $repository->status,
-                ]
-            ]);
-            
+                'tree' => $this->buildFileTree($repository, null, 0, $maxDepth),
+                'stats' => $this->getRepositoryStats($repository),
+            ], null, 'File tree retrieved successfully');
         } catch (Exception $e) {
             return response()->sendError(
                 $e->getMessage(),

@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\Auth\PostLogoutController;
 use App\Http\Controllers\Api\V1\Auth\PostRegisterController;
 use App\Http\Controllers\Api\V1\Auth\RequestPasswordResetController;
 use App\Http\Controllers\Api\V1\Models\PostModelController;
+use App\Http\Controllers\Api\V1\Models\GetModelController;
 use App\Http\Controllers\Api\V1\Models\GetFilesController;
 use App\Http\Controllers\Api\V1\Models\GetFileTreeController;
 use App\Http\Controllers\Api\V1\Models\GetFileContentController;
@@ -46,12 +47,17 @@ Route::group(['prefix' => 'v1'], function () {
      Route::group(['middleware' => ['auth:sanctum']], function () {
          // Model routes
         Route::prefix('models')->group(function () {
-            Route::post('upload', PostModelController::class)->name('v1.models.upload');
-            Route::get('{uuid}/files', GetFilesController::class)->name('v1.models.files');
-            Route::get('{uuid}/tree', GetFileTreeController::class)->name('v1.models.tree');
-            Route::get('{uuid}/download', DownloadZipController::class)->name('v1.models.download.zip');
-            Route::get('files/{uuid}/download', DownloadFileController::class)->name('v1.models.download.file');
-            Route::get('files/{uuid}/content', GetFileContentController::class)->name('v1.models.file.content');
+            Route::post('/', PostModelController::class)->name('v1.models.store');
+            Route::get('{uuid}', GetModelController::class)->name('v1.models.show');
+            Route::get('{uuid}/files', GetFilesController::class)->name('v1.models.files.index');
+            Route::get('{uuid}/tree', GetFileTreeController::class)->name('v1.models.tree.show');
+            Route::get('{uuid}/download', DownloadZipController::class)->name('v1.models.download');
+            
+            // File routes
+            Route::prefix('files')->group(function () {
+                Route::get('{uuid}/download', DownloadFileController::class)->name('v1.models.files.download');
+                Route::get('{uuid}/content', GetFileContentController::class)->name('v1.models.files.content');
+            });
         });
      });
 });

@@ -36,7 +36,6 @@ class PostModelController extends Controller
                 $this->modelRepositoryTransformer,
                 'Model uploaded successfully and is pending review.'
             );
-
         } catch (Exception $e) {
             return response()->sendError(
                 $e->getMessage(),

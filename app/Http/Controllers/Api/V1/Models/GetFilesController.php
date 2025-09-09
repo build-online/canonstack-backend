@@ -23,25 +23,10 @@ class GetFilesController extends Controller
      */
     public function __invoke(Request $request, string $uuid): JsonResponse
     {
-        // Ensure this repository has a model (is a model repository)
         $model = ModelRepository::where('uuid', $uuid)->firstOrFail();
-        if (!$model) {
-            return response()->sendError(
-                'Model not found.',
-                404
-            );
-        }
-
         $repository = $model->repository;
-        if (!$repository) {
-            return response()->sendError(
-                'Repository not found.',
-                404
-            );
-        }
-
         $parentPath = $request->query('path');
-
+        
         try {
             $navigationData = $this->fileSystemService->getFileStructure($repository, $parentPath);
             
@@ -56,7 +41,7 @@ class GetFilesController extends Controller
                     'name' => $repository->name,
                     'status' => $repository->status,
                 ]
-            ]);
+            ], null, 'File structure retrieved successfully');
         } catch (Exception $e) {
             return response()->sendError(
                 $e->getMessage(),

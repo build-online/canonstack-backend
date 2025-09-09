@@ -23,38 +23,12 @@ class DownloadFileController extends Controller
     public function __invoke(string $uuid): JsonResponse
     {
         $file = RepositoryFile::where('uuid', $uuid)->firstOrFail();
-        if (!$file) {
-            return response()->sendError(
-                'File not found.',
-                404
-            );
-        }
-        
-        if ($file->type !== 'file') {
-            return response()->sendError(
-                'Cannot download a folder.',
-                400
-            );
-        }
 
-        // Check if user can access this file
-        // You can add authorization logic here if needed
-        
         try {
-            $downloadUrl = $this->fileSystemService->getFileDownloadUrl($file);
-            
             return response()->sendResponse([
-                'download_url' => $downloadUrl,
-                'file' => [
-                    'uuid' => $file->uuid,
-                    'name' => $file->name,
-                    'size' => $file->size,
-                    'human_size' => $file->human_size,
-                    'mime_type' => $file->mime_type,
-                ],
+                'download_url' => $this->fileSystemService->getFileDownloadUrl($file),
                 'expires_in' => '1 hour'
-            ]);
-            
+            ], null, 'Link generated successfully');
         } catch (Exception $e) {
             return response()->sendError(
                 $e->getMessage(),

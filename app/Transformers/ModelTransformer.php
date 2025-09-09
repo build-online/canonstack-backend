@@ -7,6 +7,14 @@ use League\Fractal\TransformerAbstract;
 
 class ModelTransformer extends TransformerAbstract
 {
+    protected array $availableIncludes = [
+        'repository'
+    ];
+
+    protected array $defaultIncludes = [
+        'repository'
+    ];
+
     public function transform(ModelRepository $model): array
     {
         return [
@@ -15,5 +23,10 @@ class ModelTransformer extends TransformerAbstract
             'created_at' => $model->created_at->toISOString(),
             'updated_at' => $model->updated_at->toISOString(),
         ];
+    }
+
+    public function includeRepository(ModelRepository $model)
+    {
+        return $this->item($model->repository, new RepositoryTransformer());
     }
 }

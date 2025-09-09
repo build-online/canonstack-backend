@@ -15,6 +15,7 @@ class GetFileContentController extends Controller
     public function __construct(FileSystemService $fileSystemService)
     {
         $this->fileSystemService = $fileSystemService;
+        $this->middleware('auth:sanctum');
     }
 
     /**
@@ -23,29 +24,7 @@ class GetFileContentController extends Controller
     public function __invoke(string $uuid): JsonResponse
     {
         $file = RepositoryFile::where('uuid', $uuid)->firstOrFail();
-        if (!$file) {
-            return response()->sendError(
-                'File not found.',
-                404
-            );
-        }
         
-        // Ensure this is a file, not a folder
-        if ($file->type !== 'file') {
-            return response()->sendError(
-                'Cannot view content of a folder.',
-                400
-            );
-        }
-
-        // Check if file has a reference (was uploaded)
-        if (!$file->file_ref) {
-            return response()->sendError(
-                'File reference not found.',
-                404
-            );
-        }
-
         try {
             $contentData = $this->fileSystemService->getFileContent($file);
             
@@ -64,8 +43,7 @@ class GetFileContentController extends Controller
                 'line_count' => $contentData['line_count'],
                 'is_truncated' => $contentData['is_truncated'],
                 'preview_size' => $contentData['preview_size'],
-            ]);
-            
+            ], null, 'File content retrieved successfully');
         } catch (Exception $e) {
             return response()->sendError(
                 $e->getMessage(),

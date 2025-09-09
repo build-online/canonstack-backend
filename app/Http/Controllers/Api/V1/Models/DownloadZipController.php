@@ -23,35 +23,13 @@ class DownloadZipController extends Controller
     public function __invoke(string $uuid): JsonResponse
     {
         $model = ModelRepository::where('uuid', $uuid)->firstOrFail();
-        // Ensure this repository has a model (is a model repository)
-        if (!$model) {
-            return response()->sendError(
-                'Model not found.',
-                404
-            );
-        }
-
         $repository = $model->repository;
-        if (!$repository) {
-            return response()->sendError(
-                'Repository not found.',
-                404
-            );
-        }
 
         try {
-            $downloadUrl = $this->fileSystemService->getZipDownloadUrl($repository);
-            
             return response()->sendResponse([
-                'download_url' => $downloadUrl,
-                'repository' => [
-                    'uuid' => $repository->uuid,
-                    'name' => $repository->name,
-                    'file_ref' => $repository->file_ref,
-                ],
+                'download_url' => $this->fileSystemService->getZipDownloadUrl($repository),
                 'expires_in' => '1 hour'
-            ]);
-            
+            ], null, 'Download URL generated successfully');
         } catch (Exception $e) {
             return response()->sendError(
                 $e->getMessage(),
