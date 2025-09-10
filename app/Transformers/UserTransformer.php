@@ -25,11 +25,6 @@ class UserTransformer extends TransformerAbstract
             'username' => $user->username,
             'email' => $user->email,
             'role' => $user->role,
-            'religious_movement' => $user->religiousMovement ? [
-                'uuid' => $user->religiousMovement->uuid,
-                'main_religion' => $user->religiousMovement->main_religion,
-                'branch' => $user->religiousMovement->branch,
-            ] : null,
         ];
     }
 
