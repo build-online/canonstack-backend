@@ -28,6 +28,7 @@ class User extends Authenticatable
         'password',
         'role',
         'uuid',
+        'religious_movement_id',
     ];
 
     /**
@@ -58,5 +59,13 @@ class User extends Authenticatable
     public function sendPasswordResetNotification($token)
     {
         $this->notify(new ResetPasswordNotification($token));
+    }
+
+    /**
+     * Get the religious movement that this user belongs to.
+     */
+    public function religiousMovement()
+    {
+        return $this->belongsTo(ReligiousMovement::class);
     }
 }

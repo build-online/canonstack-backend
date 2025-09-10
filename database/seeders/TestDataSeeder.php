@@ -55,6 +55,8 @@ class TestDataSeeder extends Seeder
             ReligiousMovement::firstOrCreate($movement);
         }
 
+        $religiousMovement = ReligiousMovement::first();
+
         // Create a test user if it doesn't exist
         User::firstOrCreate(
             ['email' => 'user@faithtech.com'],
@@ -68,13 +70,14 @@ class TestDataSeeder extends Seeder
 
         // Create a test approver if it doesn't exist
         User::firstOrCreate(
-            ['email' => 'approve@faithtech.com'],
+            ['email' => 'approver@faithtech.com'],
             [
                 'name' => 'Test Approver',
                 'username' => 'testapprover',
                 'password' => bcrypt('password123'),
                 'email_verified_at' => now(),
                 'role' => 'APPROVER',
+                'religious_movement_id' => $religiousMovement->id,
             ]
         );
 
