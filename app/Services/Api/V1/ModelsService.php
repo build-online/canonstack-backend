@@ -4,6 +4,9 @@ namespace App\Services\Api\V1;
 
 use App\Models\Repository;
 use App\Models\ModelRepository;
+use App\Models\Category;
+use App\Models\ReligiousMovement;
+use App\Models\Tag;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -37,7 +40,7 @@ class ModelsService
             // Create database records
             $repository = $this->createRepository($data, $fileRef);            
             $model = $this->createModel($repository);
-            $this->attachTags($repository, $data['tag_ids']);
+            $this->attachTags($repository, $data['tag_uuids']);
             
             // Extract ZIP contents and store file structure
             $this->fileSystemService->extractAndStoreZipContents($repository);
@@ -115,8 +118,8 @@ class ModelsService
             'name' => $data['name'],
             'description' => $data['description'],
             'file_ref' => $fileRef,
-            'category_id' => $data['category_id'],
-            'religious_movement_id' => $data['religious_movement_id'],
+            'category_id' => $this->getCategoryIdByUuid($data['category_uuid']),
+            'religious_movement_id' => $this->getReligiousMovementIdByUuid($data['religious_movement_uuid']),
             'status' => 'PENDING_REVIEW',
         ]);
     }
@@ -134,8 +137,9 @@ class ModelsService
     /**
      * Attach tags to the repository.
      */
-    private function attachTags(Repository $repository, array $tagIds): void
+    private function attachTags(Repository $repository, array $tagUuids): void
     {
+        $tagIds = $this->getTagIdsByUuids($tagUuids);
         $repository->tags()->attach($tagIds);
     }
 
@@ -218,8 +222,8 @@ class ModelsService
                 $this->updateRepository($repository, $data);
             }
             
-            if (isset($data['tag_ids'])) {
-                $this->updateTags($repository, $data['tag_ids']);
+            if (isset($data['tag_uuids'])) {
+                $this->updateTags($repository, $data['tag_uuids']);
             }
             
             DB::commit();
@@ -241,8 +245,17 @@ class ModelsService
      */
     private function updateRepository(Repository $repository, array $data): void
     {
-        $allowedFields = ['name', 'description', 'category_id', 'file_ref', 'status'];
+        $allowedFields = ['name', 'description', 'file_ref', 'status'];
         $updateData = array_intersect_key($data, array_flip($allowedFields));
+        
+        // Handle UUID-based fields
+        if (isset($data['category_uuid'])) {
+            $updateData['category_id'] = $this->getCategoryIdByUuid($data['category_uuid']);
+        }
+        
+        if (isset($data['religious_movement_uuid'])) {
+            $updateData['religious_movement_id'] = $this->getReligiousMovementIdByUuid($data['religious_movement_uuid']);
+        }
         
         if (!empty($updateData)) {
             $repository->update($updateData);
@@ -252,8 +265,9 @@ class ModelsService
     /**
      * Update repository tags.
      */
-    private function updateTags(Repository $repository, array $tagIds): void
+    private function updateTags(Repository $repository, array $tagUuids): void
     {
+        $tagIds = $this->getTagIdsByUuids($tagUuids);
         $repository->tags()->sync($tagIds);
     }
 
@@ -360,5 +374,29 @@ class ModelsService
             // Sort by model fields (created_at, updated_at)
             $query->orderBy("models.{$sortBy}", $sortDirection);
         }
+    }
+
+    /**
+     * Get category ID by UUID.
+     */
+    private function getCategoryIdByUuid(string $uuid): int
+    {
+        return Category::where('uuid', $uuid)->first()->id;
+    }
+
+    /**
+     * Get religious movement ID by UUID.
+     */
+    private function getReligiousMovementIdByUuid(string $uuid): int
+    {
+        return ReligiousMovement::where('uuid', $uuid)->first()->id;
+    }
+
+    /**
+     * Get tag IDs by UUIDs.
+     */
+    private function getTagIdsByUuids(array $uuids): array
+    {
+        return Tag::whereIn('uuid', $uuids)->get()->pluck('id')->toArray();
     }
 }

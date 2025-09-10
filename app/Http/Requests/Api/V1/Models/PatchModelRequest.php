@@ -41,21 +41,27 @@ class PatchModelRequest extends FormRequest
                 'string',
                 'max:1000'
             ],
-            'category_id' => [
+            'category_uuid' => [
                 'sometimes',
                 'required',
-                'integer',
-                'exists:categories,id'
+                'string',
+                'exists:categories,uuid'
             ],
-            'tag_ids' => [
+            'tag_uuids' => [
                 'sometimes',
                 'required',
                 'array',
                 'min:1'
             ],
-            'tag_ids.*' => [
-                'integer',
-                'exists:tags,id'
+            'tag_uuids.*' => [
+                'string',
+                'exists:tags,uuid'
+            ],
+            'religious_movement_uuid' => [
+                'sometimes',
+                'required',
+                'string',
+                'exists:religious_movements,uuid'
             ],
         ];
     }
@@ -70,9 +76,10 @@ class PatchModelRequest extends FormRequest
         return [
             'zip_file.mimes' => 'The file must be a ZIP archive.',
             'zip_file.max' => "The ZIP file cannot be larger than {$maxZipSizeLabel}.",
-            'tag_ids.required' => 'At least one tag must be selected.',
-            'tag_ids.*.exists' => 'One or more selected tags are invalid.',
-            'category_id.exists' => 'The selected category is invalid.',
+            'tag_uuids.required' => 'At least one tag must be selected.',
+            'tag_uuids.*.exists' => 'One or more selected tags are invalid.',
+            'category_uuid.exists' => 'The selected category is invalid.',
+            'religious_movement_uuid.exists' => 'The selected religious movement is invalid.',
         ];
     }
 }

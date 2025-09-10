@@ -47,7 +47,8 @@ class PatchModelController extends Controller
             return response()->sendResponse(
                 $updatedModel,
                 $this->modelRepositoryTransformer,
-                'Model updated successfully'
+                'Model updated successfully',
+                ['repository', 'repository.user', 'repository.category', 'repository.religiousMovement', 'repository.tags', 'repository.approver'],
             );
         } catch (Exception $e) {
             return response()->sendError(
