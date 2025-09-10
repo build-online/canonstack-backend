@@ -19,8 +19,6 @@ class ModelRepositoryTransformer extends TransformerAbstract
     {
         return [
             'uuid' => $model->uuid,
-            'created_at' => $model->created_at->toISOString(),
-            'updated_at' => $model->updated_at->toISOString(),
         ];
     }
 

@@ -24,8 +24,6 @@ class RepositoryTransformer extends TransformerAbstract
             'description' => $repository->description,
             'status' => $repository->status,
             'file_ref' => $repository->file_ref,
-            'created_at' => $repository->created_at->toISOString(),
-            'updated_at' => $repository->updated_at->toISOString(),
         ];
     }
 
