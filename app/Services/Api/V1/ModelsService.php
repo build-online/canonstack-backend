@@ -46,7 +46,15 @@ class ModelsService
             $this->fileSystemService->extractAndStoreZipContents($repository);
             
             DB::commit();
-            return $model->fresh(['repository', 'repository.user', 'repository.category', 'repository.religiousMovement', 'repository.tags'])->loadCount('repository.downloads');
+            return $model->fresh([
+                'repository' => function ($query) {
+                    $query->withCount(['downloads', 'likes']);
+                },
+                'repository.user', 
+                'repository.category', 
+                'repository.religiousMovement', 
+                'repository.tags'
+            ]);
             
         } catch (Exception $e) {
             DB::rollBack();
@@ -228,7 +236,15 @@ class ModelsService
             
             DB::commit();
             
-            return $model->fresh(['repository', 'repository.user', 'repository.category', 'repository.religiousMovement', 'repository.tags'])->loadCount('repository.downloads');
+            return $model->fresh([
+                'repository' => function ($query) {
+                    $query->withCount(['downloads', 'likes']);
+                },
+                'repository.user', 
+                'repository.category', 
+                'repository.religiousMovement', 
+                'repository.tags'
+            ]);
         } catch (Exception $e) {
             DB::rollBack();
             
@@ -279,7 +295,7 @@ class ModelsService
         $query = ModelRepository::query()
             ->with([
                 'repository' => function ($query) {
-                    $query->withCount('downloads');
+                    $query->withCount(['downloads', 'likes']);
                 },
                 'repository.user:id,uuid,name,username,email,role', 
                 'repository.category:id,uuid,name', 

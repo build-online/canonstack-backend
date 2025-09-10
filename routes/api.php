@@ -22,6 +22,8 @@ use App\Http\Controllers\Api\V1\Models\DownloadZipController;
 use App\Http\Controllers\Api\V1\Categories\GetCategoriesController;
 use App\Http\Controllers\Api\V1\Tags\GetTagsController;
 use App\Http\Controllers\Api\V1\ReligiousMovements\GetReligiousMovementsController;
+use App\Http\Controllers\Api\V1\Models\PostLikeController;
+use App\Http\Controllers\Api\V1\Models\PostUnlikeController;
 
 /*
 |--------------------------------------------------------------------------
@@ -60,6 +62,8 @@ Route::group(['prefix' => 'v1'], function () {
             Route::get('{uuid}/files', GetFilesController::class)->name('v1.models.files.index');
             Route::get('{uuid}/tree', GetFileTreeController::class)->name('v1.models.tree.show');
             Route::get('{uuid}/download', DownloadZipController::class)->name('v1.models.download');
+            Route::post('{uuid}/like', PostLikeController::class)->name('v1.models.like');
+            Route::post('{uuid}/unlike', PostUnlikeController::class)->name('v1.models.unlike');
             
             Route::prefix('files')->group(function () {
                 Route::get('{uuid}/download', DownloadFileController::class)->name('v1.models.files.download');
