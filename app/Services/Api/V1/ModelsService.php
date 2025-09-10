@@ -181,4 +181,79 @@ class ModelsService
             }
         }
     }
+
+    /**
+     * Update a model with new information and optionally replace the ZIP file.
+     */
+    public function updateModel(ModelRepository $model, array $data, ?UploadedFile $zipFile = null): ModelRepository
+    {
+        DB::beginTransaction();
+        
+        try {
+            $repository = $model->repository;
+            $oldFileRef = null;
+            
+            if ($zipFile) {
+                $this->validateZipFile($zipFile);
+                $oldFileRef = $repository->file_ref;
+                
+                $newFileRef = $this->generateFileReference($zipFile);
+                $this->uploadToStorage($zipFile, $newFileRef);
+                
+                $this->deleteRepositoryFiles($repository);
+                $repository->files()->delete();
+                
+                $data['file_ref'] = $newFileRef;
+                $data['status'] = 'PENDING_REVIEW';
+                
+                // Update repository metadata (must be done before extraction)
+                $this->updateRepository($repository, $data);
+                
+                $this->fileSystemService->extractAndStoreZipContents($repository);
+                
+                if ($oldFileRef) {
+                    Storage::delete($oldFileRef);
+                }
+            } else {
+                $this->updateRepository($repository, $data);
+            }
+            
+            if (isset($data['tag_ids'])) {
+                $this->updateTags($repository, $data['tag_ids']);
+            }
+            
+            DB::commit();
+            
+            return $model->fresh(['repository', 'repository.user', 'repository.category', 'repository.religiousMovement', 'repository.tags']);
+        } catch (Exception $e) {
+            DB::rollBack();
+            
+            if (isset($newFileRef)) {
+                Storage::delete($newFileRef);
+            }
+            
+            throw $e;
+        }
+    }
+
+    /**
+     * Update repository metadata.
+     */
+    private function updateRepository(Repository $repository, array $data): void
+    {
+        $allowedFields = ['name', 'description', 'category_id', 'file_ref', 'status'];
+        $updateData = array_intersect_key($data, array_flip($allowedFields));
+        
+        if (!empty($updateData)) {
+            $repository->update($updateData);
+        }
+    }
+
+    /**
+     * Update repository tags.
+     */
+    private function updateTags(Repository $repository, array $tagIds): void
+    {
+        $repository->tags()->sync($tagIds);
+    }
 }
