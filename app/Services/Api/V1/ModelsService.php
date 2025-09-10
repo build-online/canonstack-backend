@@ -48,7 +48,7 @@ class ModelsService
             DB::commit();
             return $model->fresh([
                 'repository' => function ($query) {
-                    $query->withCount(['downloads', 'likes']);
+                    $query->withCount(['downloads', 'likes', 'comments']);
                 },
                 'repository.user', 
                 'repository.category', 
@@ -238,7 +238,7 @@ class ModelsService
             
             return $model->fresh([
                 'repository' => function ($query) {
-                    $query->withCount(['downloads', 'likes']);
+                    $query->withCount(['downloads', 'likes', 'comments']);
                 },
                 'repository.user', 
                 'repository.category', 
@@ -295,7 +295,7 @@ class ModelsService
         $query = ModelRepository::query()
             ->with([
                 'repository' => function ($query) {
-                    $query->withCount(['downloads', 'likes']);
+                    $query->withCount(['downloads', 'likes', 'comments']);
                 },
                 'repository.user:id,uuid,name,username,email,role', 
                 'repository.category:id,uuid,name', 

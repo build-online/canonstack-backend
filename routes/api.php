@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\Tags\GetTagsController;
 use App\Http\Controllers\Api\V1\ReligiousMovements\GetReligiousMovementsController;
 use App\Http\Controllers\Api\V1\Models\PostLikeController;
 use App\Http\Controllers\Api\V1\Models\PostUnlikeController;
+use App\Http\Controllers\Api\V1\Models\PostCommentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -64,6 +65,7 @@ Route::group(['prefix' => 'v1'], function () {
             Route::get('{uuid}/download', DownloadZipController::class)->name('v1.models.download');
             Route::post('{uuid}/like', PostLikeController::class)->name('v1.models.like');
             Route::post('{uuid}/unlike', PostUnlikeController::class)->name('v1.models.unlike');
+            Route::post('{uuid}/comments', PostCommentController::class)->name('v1.models.comments.store');
             
             Route::prefix('files')->group(function () {
                 Route::get('{uuid}/download', DownloadFileController::class)->name('v1.models.files.download');

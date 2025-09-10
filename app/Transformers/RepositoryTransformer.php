@@ -13,7 +13,8 @@ class RepositoryTransformer extends TransformerAbstract
         'religiousMovement',
         'tags',
         'model',
-        'approver'
+        'approver',
+        'comments'
     ];
 
     public function transform(Repository $repository): array
@@ -26,6 +27,7 @@ class RepositoryTransformer extends TransformerAbstract
             'file_ref' => $repository->file_ref,
             'downloads_count' => $repository->downloads_count ?? $repository->downloads()->count(),
             'likes_count' => $repository->likes_count ?? $repository->likes()->count(),
+            'comments_count' => $repository->comments_count ?? $repository->comments()->count(),
         ];
     }
 
@@ -72,5 +74,10 @@ class RepositoryTransformer extends TransformerAbstract
             return $this->item($repository->approver, new UserTransformer());
         }
         return $this->null();
+    }
+
+    public function includeComments(Repository $repository)
+    {
+        return $this->collection($repository->comments()->with('user')->orderBy('created_at', 'desc')->get(), new CommentTransformer());
     }
 }

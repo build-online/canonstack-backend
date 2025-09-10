@@ -105,4 +105,12 @@ class Repository extends Model
     {
         return $this->hasMany(Like::class);
     }
+
+    /**
+     * Get all comments for this repository.
+     */
+    public function comments()
+    {
+        return $this->hasMany(Comment::class);
+    }
 }
