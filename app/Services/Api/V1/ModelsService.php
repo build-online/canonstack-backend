@@ -256,4 +256,109 @@ class ModelsService
     {
         $repository->tags()->sync($tagIds);
     }
+
+    /**
+     * Get paginated list of models with filtering options.
+     */
+    public function getModels(array $filters): \Illuminate\Contracts\Pagination\LengthAwarePaginator
+    {
+        $query = ModelRepository::query()
+            ->with([
+                'repository', 
+                'repository.user:id,uuid,name,username,email,role', 
+                'repository.category:id,uuid,name', 
+                'repository.religiousMovement:id,uuid,main_religion,branch', 
+                'repository.tags:id,uuid,name'
+            ]);
+
+        // Apply filters
+        $this->applyModelFilters($query, $filters);
+
+        // Apply sorting
+        $this->applyModelSorting($query, $filters);
+
+        // Return paginated results
+        return $query->paginate(
+            $filters['per_page'],
+            ['*'],
+            'page',
+            $filters['page']
+        );
+    }
+
+    /**
+     * Apply filters to the model query.
+     */
+    private function applyModelFilters($query, array $filters): void
+    {
+        // Filter by category UUID
+        if ($filters['category_uuid']) {
+            $query->whereHas('repository.category', function ($q) use ($filters) {
+                $q->where('uuid', $filters['category_uuid']);
+            });
+        }
+
+        // Filter by single tag UUID
+        if ($filters['tag_uuid']) {
+            $query->whereHas('repository.tags', function ($q) use ($filters) {
+                $q->where('tags.uuid', $filters['tag_uuid']);
+            });
+        }
+
+        // Filter by multiple tag UUIDs (models that have ALL specified tags)
+        if ($filters['tag_uuids'] && is_array($filters['tag_uuids'])) {
+            foreach ($filters['tag_uuids'] as $tagUuid) {
+                $query->whereHas('repository.tags', function ($q) use ($tagUuid) {
+                    $q->where('tags.uuid', $tagUuid);
+                });
+            }
+        }
+
+        // Filter by user UUID (creator)
+        if ($filters['user_uuid']) {
+            $query->whereHas('repository.user', function ($q) use ($filters) {
+                $q->where('uuid', $filters['user_uuid']);
+            });
+        }
+
+        // Filter by religious movement UUID
+        if ($filters['religious_movement_uuid']) {
+            $query->whereHas('repository.religiousMovement', function ($q) use ($filters) {
+                $q->where('uuid', $filters['religious_movement_uuid']);
+            });
+        }
+
+        // Filter by status
+        if ($filters['status']) {
+            $query->whereHas('repository', function ($q) use ($filters) {
+                $q->where('status', $filters['status']);
+            });
+        }
+
+        // Filter by name (contains search)
+        if ($filters['name']) {
+            $query->whereHas('repository', function ($q) use ($filters) {
+                $q->where('name', 'LIKE', '%' . $filters['name'] . '%');
+            });
+        }
+    }
+
+    /**
+     * Apply sorting to the model query.
+     */
+    private function applyModelSorting($query, array $filters): void
+    {
+        $sortBy = $filters['sort_by'];
+        $sortDirection = $filters['sort_direction'];
+
+        if (in_array($sortBy, ['name', 'status'])) {
+            // Sort by repository fields
+            $query->join('repositories', 'models.repository_id', '=', 'repositories.id')
+                  ->orderBy("repositories.{$sortBy}", $sortDirection)
+                  ->select('models.*'); // Select only model fields to avoid conflicts
+        } else {
+            // Sort by model fields (created_at, updated_at)
+            $query->orderBy("models.{$sortBy}", $sortDirection);
+        }
+    }
 }

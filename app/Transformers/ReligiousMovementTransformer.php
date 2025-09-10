@@ -13,8 +13,6 @@ class ReligiousMovementTransformer extends TransformerAbstract
             'uuid' => $religiousMovement->uuid,
             'main_religion' => $religiousMovement->main_religion,
             'branch' => $religiousMovement->branch,
-            'created_at' => $religiousMovement->created_at->toISOString(),
-            'updated_at' => $religiousMovement->updated_at->toISOString(),
         ];
     }
 }

@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\Auth\PostLogoutController;
 use App\Http\Controllers\Api\V1\Auth\PostRegisterController;
 use App\Http\Controllers\Api\V1\Auth\RequestPasswordResetController;
 use App\Http\Controllers\Api\V1\Models\PostModelController;
+use App\Http\Controllers\Api\V1\Models\GetModelsController;
 use App\Http\Controllers\Api\V1\Models\GetModelController;
 use App\Http\Controllers\Api\V1\Models\PatchModelController;
 use App\Http\Controllers\Api\V1\Models\DeleteModelController;
@@ -47,8 +48,8 @@ Route::group(['prefix' => 'v1'], function () {
      });
 
      Route::group(['middleware' => ['auth:sanctum']], function () {
-         // Model routes
         Route::prefix('models')->group(function () {
+            Route::get('/', GetModelsController::class)->name('v1.models.index');
             Route::post('/', PostModelController::class)->name('v1.models.store');
             Route::get('{uuid}', GetModelController::class)->name('v1.models.show');
             Route::patch('{uuid}', PatchModelController::class)->name('v1.models.update');
@@ -57,7 +58,6 @@ Route::group(['prefix' => 'v1'], function () {
             Route::get('{uuid}/tree', GetFileTreeController::class)->name('v1.models.tree.show');
             Route::get('{uuid}/download', DownloadZipController::class)->name('v1.models.download');
             
-            // File routes
             Route::prefix('files')->group(function () {
                 Route::get('{uuid}/download', DownloadFileController::class)->name('v1.models.files.download');
                 Route::get('{uuid}/content', GetFileContentController::class)->name('v1.models.files.content');

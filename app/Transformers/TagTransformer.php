@@ -12,8 +12,6 @@ class TagTransformer extends TransformerAbstract
         return [
             'uuid' => $tag->uuid,
             'name' => $tag->name,
-            'created_at' => $tag->created_at->toISOString(),
-            'updated_at' => $tag->updated_at->toISOString(),
         ];
     }
 }

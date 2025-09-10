@@ -12,8 +12,6 @@ class CategoryTransformer extends TransformerAbstract
         return [
             'uuid' => $category->uuid,
             'name' => $category->name,
-            'created_at' => $category->created_at->toISOString(),
-            'updated_at' => $category->updated_at->toISOString(),
         ];
     }
 }
