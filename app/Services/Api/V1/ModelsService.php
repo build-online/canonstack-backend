@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use ZipArchive;
 use Exception;
+use Illuminate\Support\Facades\Log;
 
 class ModelsService
 {
@@ -136,5 +137,48 @@ class ModelsService
     private function attachTags(Repository $repository, array $tagIds): void
     {
         $repository->tags()->attach($tagIds);
+    }
+
+    /**
+     * Delete a model and all associated files.
+     */
+    public function deleteModel(ModelRepository $model): void
+    {
+        DB::beginTransaction();
+        
+        try {
+            $repository = $model->repository;
+            
+            $this->deleteRepositoryFiles($repository);
+            if ($repository->file_ref) {
+                Storage::delete($repository->file_ref);
+            }
+            
+            // Cascade deletes will handle models, repository_files, repository_tags
+            $repository->delete();
+
+            DB::commit();            
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Delete all files associated with a repository from storage.
+     */
+    private function deleteRepositoryFiles(Repository $repository): void
+    {
+        $files = $repository->files()->where('type', 'file')->get();
+        
+        foreach ($files as $file) {
+            if ($file->file_ref) {
+                try {
+                    Storage::delete($file->file_ref);
+                } catch (Exception $e) {
+                    Log::warning("Failed to delete file from storage: {$file->file_ref}. Error: " . $e->getMessage());
+                }
+            }
+        }
     }
 }

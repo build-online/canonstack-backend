@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\Auth\PostRegisterController;
 use App\Http\Controllers\Api\V1\Auth\RequestPasswordResetController;
 use App\Http\Controllers\Api\V1\Models\PostModelController;
 use App\Http\Controllers\Api\V1\Models\GetModelController;
+use App\Http\Controllers\Api\V1\Models\DeleteModelController;
 use App\Http\Controllers\Api\V1\Models\GetFilesController;
 use App\Http\Controllers\Api\V1\Models\GetFileTreeController;
 use App\Http\Controllers\Api\V1\Models\GetFileContentController;
@@ -49,6 +50,7 @@ Route::group(['prefix' => 'v1'], function () {
         Route::prefix('models')->group(function () {
             Route::post('/', PostModelController::class)->name('v1.models.store');
             Route::get('{uuid}', GetModelController::class)->name('v1.models.show');
+            Route::delete('{uuid}', DeleteModelController::class)->name('v1.models.destroy');
             Route::get('{uuid}/files', GetFilesController::class)->name('v1.models.files.index');
             Route::get('{uuid}/tree', GetFileTreeController::class)->name('v1.models.tree.show');
             Route::get('{uuid}/download', DownloadZipController::class)->name('v1.models.download');
