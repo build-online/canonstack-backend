@@ -89,4 +89,12 @@ class Repository extends Model
     {
         return $this->hasMany(RepositoryFile::class)->root();
     }
+
+    /**
+     * Get all downloads for this repository.
+     */
+    public function downloads()
+    {
+        return $this->hasMany(Download::class);
+    }
 }
