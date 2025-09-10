@@ -24,6 +24,7 @@ class RepositoryTransformer extends TransformerAbstract
             'description' => $repository->description,
             'status' => $repository->status,
             'file_ref' => $repository->file_ref,
+            'downloads_count' => $repository->downloads_count ?? $repository->downloads()->count(),
         ];
     }
 

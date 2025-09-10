@@ -46,7 +46,7 @@ class ModelsService
             $this->fileSystemService->extractAndStoreZipContents($repository);
             
             DB::commit();
-            return $model;
+            return $model->fresh(['repository', 'repository.user', 'repository.category', 'repository.religiousMovement', 'repository.tags'])->loadCount('repository.downloads');
             
         } catch (Exception $e) {
             DB::rollBack();
@@ -228,7 +228,7 @@ class ModelsService
             
             DB::commit();
             
-            return $model->fresh(['repository', 'repository.user', 'repository.category', 'repository.religiousMovement', 'repository.tags']);
+            return $model->fresh(['repository', 'repository.user', 'repository.category', 'repository.religiousMovement', 'repository.tags'])->loadCount('repository.downloads');
         } catch (Exception $e) {
             DB::rollBack();
             
@@ -278,7 +278,9 @@ class ModelsService
     {
         $query = ModelRepository::query()
             ->with([
-                'repository', 
+                'repository' => function ($query) {
+                    $query->withCount('downloads');
+                },
                 'repository.user:id,uuid,name,username,email,role', 
                 'repository.category:id,uuid,name', 
                 'repository.religiousMovement:id,uuid,main_religion,branch', 
