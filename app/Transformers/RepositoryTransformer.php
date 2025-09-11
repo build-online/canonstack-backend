@@ -28,6 +28,8 @@ class RepositoryTransformer extends TransformerAbstract
             'downloads_count' => $repository->downloads_count ?? $repository->downloads()->count(),
             'likes_count' => $repository->likes_count ?? $repository->likes()->count(),
             'comments_count' => $repository->comments_count ?? $repository->comments()->count(),
+            'created_at' => $repository->created_at->toISOString(),
+            'updated_at' => $repository->updated_at->toISOString(),
         ];
     }
 
