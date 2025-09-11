@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use ZipArchive;
 use Exception;
+use Illuminate\Http\UploadedFile;
 
 class FileSystemService
 {
@@ -53,6 +54,26 @@ class FileSystemService
     private function getSizeLabel(string $key): string
     {
         return config("filesystem_limits.size_labels.{$this->contentType}.{$key}", 'Unknown');
+    }
+
+    /**
+     * Validate that the uploaded file is a valid ZIP archive.
+     */
+    public function validateZipFile(UploadedFile $file): void
+    {
+        $zip = new ZipArchive();
+        $result = $zip->open($file->getRealPath());
+        
+        if (!$result) {
+            throw new Exception('Invalid ZIP file or corrupted archive.');
+        }
+        
+        if ($zip->numFiles === 0) {
+            $zip->close();
+            throw new Exception('ZIP file is empty.');
+        }
+        
+        $zip->close();
     }
 
     /**
@@ -495,7 +516,7 @@ class FileSystemService
         $extension = pathinfo($filePath, PATHINFO_EXTENSION);
         $extension = $extension ? '.' . $extension : '';
         
-        return "models/{$timestamp}/{$repository->uuid}/{$uuid}{$extension}";
+        return "{$this->contentType}/{$timestamp}/{$repository->uuid}/{$uuid}{$extension}";
     }
 
 }

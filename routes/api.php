@@ -27,6 +27,8 @@ use App\Http\Controllers\Api\V1\Models\PostUnlikeController;
 use App\Http\Controllers\Api\V1\Models\PostCommentController;
 use App\Http\Controllers\Api\V1\Comments\PatchCommentController;
 use App\Http\Controllers\Api\V1\Comments\DeleteCommentController;
+use App\Http\Controllers\Api\V1\Datasets\PostDatasetController;
+use App\Http\Controllers\Api\V1\Datasets\DownloadZipController as DatasetDownloadZipController;
 
 /*
 |--------------------------------------------------------------------------
@@ -77,6 +79,11 @@ Route::group(['prefix' => 'v1'], function () {
         
         Route::patch('comments/{uuid}', PatchCommentController::class)->name('v1.comments.update');
         Route::delete('comments/{uuid}', DeleteCommentController::class)->name('v1.comments.destroy');
+
+        Route::prefix('datasets')->group(function () {
+            Route::post('/', PostDatasetController::class)->name('v1.datasets.store');
+            Route::get('{uuid}/download', DatasetDownloadZipController::class)->name('v1.datasets.download');
+        });
 
         Route::get('categories', GetCategoriesController::class)->name('v1.categories.index');
         Route::get('tags', GetTagsController::class)->name('v1.tags.index');
