@@ -25,6 +25,8 @@ use App\Http\Controllers\Api\V1\ReligiousMovements\GetReligiousMovementsControll
 use App\Http\Controllers\Api\V1\Models\PostLikeController;
 use App\Http\Controllers\Api\V1\Models\PostUnlikeController;
 use App\Http\Controllers\Api\V1\Models\PostCommentController;
+use App\Http\Controllers\Api\V1\Comments\PatchCommentController;
+use App\Http\Controllers\Api\V1\Comments\DeleteCommentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -72,6 +74,9 @@ Route::group(['prefix' => 'v1'], function () {
                 Route::get('{uuid}/content', GetFileContentController::class)->name('v1.models.files.content');
             });
         });
+
+        Route::patch('comments/{uuid}', PatchCommentController::class)->name('v1.comments.update');
+        Route::delete('comments/{uuid}', DeleteCommentController::class)->name('v1.comments.destroy');
 
         Route::get('categories', GetCategoriesController::class)->name('v1.categories.index');
         Route::get('tags', GetTagsController::class)->name('v1.tags.index');
