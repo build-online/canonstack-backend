@@ -20,11 +20,9 @@ class CommentTransformer extends TransformerAbstract
     public function transform(Comment $comment): array
     {
         return [
-            'id' => $comment->id,
+            'uuid' => $comment->uuid,
             'text' => $comment->text,
             'is_approver' => $comment->is_approver,
-            'created_at' => $comment->created_at->toISOString(),
-            'updated_at' => $comment->updated_at->toISOString(),
         ];
     }
 
