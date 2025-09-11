@@ -43,7 +43,7 @@ class PostCommentController extends Controller
                 $comment,
                 $this->commentTransformer,
                 'Comment added successfully',
-                [],
+                ['user'],
                 [],
                 201
             );

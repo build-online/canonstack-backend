@@ -25,12 +25,6 @@ class CommentTransformer extends TransformerAbstract
             'is_approver' => $comment->is_approver,
             'created_at' => $comment->created_at->toISOString(),
             'updated_at' => $comment->updated_at->toISOString(),
-            'user' => $comment->user ? [
-                'uuid' => $comment->user->uuid,
-                'name' => $comment->user->name,
-                'username' => $comment->user->username,
-                'role' => $comment->user->role,
-            ] : null,
         ];
     }
 

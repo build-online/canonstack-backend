@@ -31,7 +31,9 @@ class GetModelController extends Controller
                 'repository.category',
                 'repository.religiousMovement',
                 'repository.tags',
-                'repository.approver'
+                'repository.approver',
+                'repository.comments',
+                'repository.comments.user'
             ])
             ->firstOrFail();
 
@@ -40,7 +42,7 @@ class GetModelController extends Controller
                 $model,
                 $this->modelTransformer,
                 'Model retrieved successfully',
-                ['repository', 'repository.user', 'repository.category', 'repository.religiousMovement', 'repository.tags', 'repository.approver', 'repository.comments'],
+                ['repository', 'repository.user', 'repository.category', 'repository.religiousMovement', 'repository.tags', 'repository.approver', 'repository.comments', 'repository.comments.user'],
             );
         } catch (Exception $e) {
             return response()->sendError(
