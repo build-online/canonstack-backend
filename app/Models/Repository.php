@@ -97,4 +97,20 @@ class Repository extends Model
     {
         return $this->hasMany(Download::class);
     }
+
+    /**
+     * Get all likes for this repository.
+     */
+    public function likes()
+    {
+        return $this->hasMany(Like::class);
+    }
+
+    /**
+     * Get all comments for this repository.
+     */
+    public function comments()
+    {
+        return $this->hasMany(Comment::class);
+    }
 }

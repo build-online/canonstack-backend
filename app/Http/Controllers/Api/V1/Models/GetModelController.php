@@ -22,14 +22,27 @@ class GetModelController extends Controller
      */
     public function __invoke(string $uuid): JsonResponse
     {
-        $model = ModelRepository::where('uuid', $uuid)->firstOrFail();
+        $model = ModelRepository::where('uuid', $uuid)
+            ->with([
+                'repository' => function ($query) {
+                    $query->withCount(['downloads', 'likes', 'comments']);
+                },
+                'repository.user',
+                'repository.category',
+                'repository.religiousMovement',
+                'repository.tags',
+                'repository.approver',
+                'repository.comments',
+                'repository.comments.user'
+            ])
+            ->firstOrFail();
 
         try {
             return response()->sendResponse(
                 $model,
                 $this->modelTransformer,
                 'Model retrieved successfully',
-                ['repository', 'repository.user', 'repository.category', 'repository.religiousMovement', 'repository.tags', 'repository.approver'],
+                ['repository', 'repository.user', 'repository.category', 'repository.religiousMovement', 'repository.tags', 'repository.approver', 'repository.comments', 'repository.comments.user'],
             );
         } catch (Exception $e) {
             return response()->sendError(
