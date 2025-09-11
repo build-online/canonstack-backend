@@ -31,7 +31,7 @@ class ModelsService
         DB::beginTransaction();
         
         try {
-            $this->validateZipFile($zipFile);
+            $this->fileSystemService->validateZipFile($zipFile);
 
             // Upload file to storage
             $fileRef = $this->generateFileReference($zipFile);
@@ -65,26 +65,6 @@ class ModelsService
             
             throw $e;
         }
-    }
-    
-    /**
-     * Validate that the uploaded file is a valid ZIP archive.
-     */
-    private function validateZipFile(UploadedFile $file): void
-    {
-        $zip = new ZipArchive();
-        $result = $zip->open($file->getRealPath());
-        
-        if (!$result) {
-            throw new Exception('Invalid ZIP file or corrupted archive.');
-        }
-        
-        if ($zip->numFiles === 0) {
-            $zip->close();
-            throw new Exception('ZIP file is empty.');
-        }
-        
-        $zip->close();
     }
     
     /**
@@ -206,7 +186,7 @@ class ModelsService
             $oldFileRef = null;
             
             if ($zipFile) {
-                $this->validateZipFile($zipFile);
+                $this->fileSystemService->validateZipFile($zipFile);
                 $oldFileRef = $repository->file_ref;
                 
                 $newFileRef = $this->generateFileReference($zipFile);

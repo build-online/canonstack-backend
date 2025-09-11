@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Http\Controllers\Api\V1\Models;
+namespace App\Http\Controllers\Api\V1\Datasets;
 
 use App\Http\Controllers\Controller;
-use App\Models\ModelRepository;
+use App\Models\Dataset;
 use App\Services\Api\V1\RepositoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,13 +19,13 @@ class GetFileTreeController extends Controller
     }
 
     /**
-     * Get complete file tree structure for a model repository.
+     * Get complete file tree structure for a dataset repository.
      * This returns a hierarchical tree useful for tree view components.
      */
     public function __invoke(Request $request, string $uuid): JsonResponse
     {
-        $model = ModelRepository::where('uuid', $uuid)->firstOrFail();
-        $repository = $model->repository;
+        $dataset = Dataset::where('uuid', $uuid)->firstOrFail();
+        $repository = $dataset->repository;
         $maxDepth = $request->query('max_depth', 5);
 
         try {

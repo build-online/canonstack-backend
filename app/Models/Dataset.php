@@ -4,14 +4,16 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\Traits\HasUuid;
 
-class ModelRepository extends Model
+class Dataset extends Model
 {
     use HasFactory, HasUuid;
 
-    protected $table = 'models';
-
+    /**
+     * The attributes that are mass assignable.
+     */
     protected $fillable = [
         'uuid',
         'repository_id',
@@ -26,9 +28,9 @@ class ModelRepository extends Model
     ];
 
     /**
-     * Get the repository that this model belongs to.
+     * Get the repository that owns the dataset.
      */
-    public function repository()
+    public function repository(): BelongsTo
     {
         return $this->belongsTo(Repository::class);
     }

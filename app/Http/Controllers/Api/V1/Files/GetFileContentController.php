@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api\V1\Models;
+namespace App\Http\Controllers\Api\V1\Files;
 
 use App\Http\Controllers\Controller;
 use App\Models\RepositoryFile;
