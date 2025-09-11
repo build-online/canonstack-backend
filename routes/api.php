@@ -67,14 +67,14 @@ Route::group(['prefix' => 'v1'], function () {
             Route::get('{uuid}/download', DownloadZipController::class)->name('v1.models.download');
             Route::post('{uuid}/like', PostLikeController::class)->name('v1.models.like');
             Route::post('{uuid}/unlike', PostUnlikeController::class)->name('v1.models.unlike');
-            Route::post('{uuid}/comments', PostCommentController::class)->name('v1.models.comments.store');
-            
-            Route::prefix('files')->group(function () {
-                Route::get('{uuid}/download', DownloadFileController::class)->name('v1.models.files.download');
-                Route::get('{uuid}/content', GetFileContentController::class)->name('v1.models.files.content');
-            });
+            Route::post('{uuid}/comments', PostCommentController::class)->name('v1.models.comments.store');    
         });
 
+        Route::prefix('files')->group(function () {
+            Route::get('{uuid}/download', DownloadFileController::class)->name('v1.models.files.download');
+            Route::get('{uuid}/content', GetFileContentController::class)->name('v1.models.files.content');
+        });
+        
         Route::patch('comments/{uuid}', PatchCommentController::class)->name('v1.comments.update');
         Route::delete('comments/{uuid}', DeleteCommentController::class)->name('v1.comments.destroy');
 
