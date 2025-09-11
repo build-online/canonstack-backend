@@ -16,8 +16,8 @@ use App\Http\Controllers\Api\V1\Models\PatchModelController;
 use App\Http\Controllers\Api\V1\Models\DeleteModelController;
 use App\Http\Controllers\Api\V1\Models\GetFilesController;
 use App\Http\Controllers\Api\V1\Models\GetFileTreeController;
-use App\Http\Controllers\Api\V1\Models\GetFileContentController;
-use App\Http\Controllers\Api\V1\Models\DownloadFileController;
+use App\Http\Controllers\Api\V1\Files\GetFileContentController;
+use App\Http\Controllers\Api\V1\Files\DownloadFileController;
 use App\Http\Controllers\Api\V1\Models\DownloadZipController;
 use App\Http\Controllers\Api\V1\Categories\GetCategoriesController;
 use App\Http\Controllers\Api\V1\Tags\GetTagsController;
@@ -29,6 +29,10 @@ use App\Http\Controllers\Api\V1\Comments\PatchCommentController;
 use App\Http\Controllers\Api\V1\Comments\DeleteCommentController;
 use App\Http\Controllers\Api\V1\Datasets\PostDatasetController;
 use App\Http\Controllers\Api\V1\Datasets\DownloadZipController as DatasetDownloadZipController;
+use App\Http\Controllers\Api\V1\Datasets\GetDatasetsController;
+use App\Http\Controllers\Api\V1\Datasets\GetDatasetController;
+use App\Http\Controllers\Api\V1\Datasets\GetFilesController as DatasetGetFilesController;
+use App\Http\Controllers\Api\V1\Datasets\GetFileTreeController as DatasetGetFileTreeController;
 
 /*
 |--------------------------------------------------------------------------
@@ -72,17 +76,23 @@ Route::group(['prefix' => 'v1'], function () {
             Route::post('{uuid}/comments', PostCommentController::class)->name('v1.models.comments.store');    
         });
 
+        Route::prefix('datasets')->group(function () {
+            Route::get('/', GetDatasetsController::class)->name('v1.datasets.index');
+            Route::post('/', PostDatasetController::class)->name('v1.datasets.store');
+            Route::get('{uuid}', GetDatasetController::class)->name('v1.datasets.show');
+            Route::get('{uuid}/download', DatasetDownloadZipController::class)->name('v1.datasets.download');
+            Route::get('{uuid}/files', DatasetGetFilesController::class)->name('v1.datasets.files.index');
+            Route::get('{uuid}/tree', DatasetGetFileTreeController::class)->name('v1.datasets.tree.show');
+        });
+
         Route::prefix('files')->group(function () {
             Route::get('{uuid}/download', DownloadFileController::class)->name('v1.models.files.download');
             Route::get('{uuid}/content', GetFileContentController::class)->name('v1.models.files.content');
         });
         
-        Route::patch('comments/{uuid}', PatchCommentController::class)->name('v1.comments.update');
-        Route::delete('comments/{uuid}', DeleteCommentController::class)->name('v1.comments.destroy');
-
-        Route::prefix('datasets')->group(function () {
-            Route::post('/', PostDatasetController::class)->name('v1.datasets.store');
-            Route::get('{uuid}/download', DatasetDownloadZipController::class)->name('v1.datasets.download');
+        Route::prefix('comments')->group(function () {
+            Route::patch('{uuid}', PatchCommentController::class)->name('v1.comments.update');
+            Route::delete('{uuid}', DeleteCommentController::class)->name('v1.comments.destroy');
         });
 
         Route::get('categories', GetCategoriesController::class)->name('v1.categories.index');
