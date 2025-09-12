@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Models;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Api\V1\Models\PostCommentRequest;
+use App\Http\Requests\Api\V1\Comments\PostCommentRequest;
 use App\Models\ModelRepository;
 use App\Models\Comment;
 use App\Transformers\CommentTransformer;

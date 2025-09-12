@@ -38,6 +38,10 @@ use App\Http\Controllers\Api\V1\Datasets\DeleteDatasetController;
 use App\Http\Controllers\Api\V1\Datasets\PostLikeController as DatasetPostLikeController;
 use App\Http\Controllers\Api\V1\Datasets\PostUnlikeController as DatasetPostUnlikeController;
 use App\Http\Controllers\Api\V1\Datasets\PostCommentController as DatasetPostCommentController;
+use App\Http\Controllers\Api\V1\Search\SearchRepositoriesController;
+use App\Http\Controllers\Api\V1\Stats\GetStatsController;
+use App\Http\Controllers\Api\V1\Featured\GetFeaturedRepositoriesController;
+use App\Http\Controllers\Api\V1\Trending\GetTrendingRepositoriesController;
 
 /*
 |--------------------------------------------------------------------------
@@ -108,5 +112,13 @@ Route::group(['prefix' => 'v1'], function () {
         Route::get('categories', GetCategoriesController::class)->name('v1.categories.index');
         Route::get('tags', GetTagsController::class)->name('v1.tags.index');
         Route::get('religious-movements', GetReligiousMovementsController::class)->name('v1.religious-movements.index');
+        
+        Route::prefix('repositories')->group(function () {
+            Route::get('featured', GetFeaturedRepositoriesController::class)->name('v1.repositories.featured');
+            Route::get('search', SearchRepositoriesController::class)->name('v1.repositories.search');
+            Route::get('trending', GetTrendingRepositoriesController::class)->name('v1.repositories.trending');
+        });
+        
+        Route::get('stats', GetStatsController::class)->name('v1.stats.general');
      });
 });

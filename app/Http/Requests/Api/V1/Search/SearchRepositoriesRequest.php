@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Http\Requests\Api\V1\Models;
+namespace App\Http\Requests\Api\V1\Search;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class PostCommentRequest extends FormRequest
+class SearchRepositoriesRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -20,11 +20,11 @@ class PostCommentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'text' => [
+            'query' => [
                 'required',
                 'string',
-                'max:1000',
-                'min:1'
+                'min:3',
+                'max:255'
             ]
         ];
     }
@@ -35,9 +35,9 @@ class PostCommentRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'text.required' => 'Comment text is required.',
-            'text.max' => 'Comment cannot be longer than 1000 characters.',
-            'text.min' => 'Comment cannot be empty.',
+            'query.required' => 'Search query is required.',
+            'query.min' => 'Search query must be at least 3 characters long.',
+            'query.max' => 'Search query cannot exceed 255 characters.',
         ];
     }
 }
