@@ -18,10 +18,12 @@ use Illuminate\Support\Facades\Log;
 class ModelsService
 {
     private FileSystemService $fileSystemService;
+    private RepositoryService $repositoryService;
 
-    public function __construct(FileSystemService $fileSystemService)
+    public function __construct(FileSystemService $fileSystemService, RepositoryService $repositoryService)
     {
         $this->fileSystemService = $fileSystemService;
+        $this->repositoryService = $repositoryService;
     }
     /**
      * Upload and process a model ZIP file.
@@ -136,42 +138,7 @@ class ModelsService
      */
     public function deleteModel(ModelRepository $model): void
     {
-        DB::beginTransaction();
-        
-        try {
-            $repository = $model->repository;
-            
-            $this->deleteRepositoryFiles($repository);
-            if ($repository->file_ref) {
-                Storage::delete($repository->file_ref);
-            }
-            
-            // Cascade deletes will handle models, repository_files, repository_tags
-            $repository->delete();
-
-            DB::commit();            
-        } catch (Exception $e) {
-            DB::rollBack();
-            throw $e;
-        }
-    }
-
-    /**
-     * Delete all files associated with a repository from storage.
-     */
-    private function deleteRepositoryFiles(Repository $repository): void
-    {
-        $files = $repository->files()->where('type', 'file')->get();
-        
-        foreach ($files as $file) {
-            if ($file->file_ref) {
-                try {
-                    Storage::delete($file->file_ref);
-                } catch (Exception $e) {
-                    Log::warning("Failed to delete file from storage: {$file->file_ref}. Error: " . $e->getMessage());
-                }
-            }
-        }
+        $this->repositoryService->deleteRepository($model->repository);
     }
 
     /**
@@ -192,7 +159,7 @@ class ModelsService
                 $newFileRef = $this->generateFileReference($zipFile);
                 $this->uploadToStorage($zipFile, $newFileRef);
                 
-                $this->deleteRepositoryFiles($repository);
+                $this->repositoryService->deleteAttachedFiles($repository);
                 $repository->files()->delete();
                 
                 $data['file_ref'] = $newFileRef;

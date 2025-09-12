@@ -4,6 +4,10 @@ namespace App\Services\Api\V1;
 
 use App\Models\Repository;
 use App\Services\Api\V1\FileSystemService;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Exception;
 
 class RepositoryService
 {
@@ -105,5 +109,46 @@ class RepositoryService
             'total_size_human' => $this->fileSystemService->formatBytes($totalSize),
             'max_depth' => $maxDepth + 1,
         ];
+    }
+
+    /**
+     * Delete a dataset and all associated files.
+     */
+    public function deleteRepository(Repository $repository): void
+    {
+        DB::beginTransaction();
+        
+        try {
+            $this->deleteAttachedFiles($repository);
+            if ($repository->file_ref) {
+                Storage::delete($repository->file_ref);
+            }
+            
+            // Cascade deletes will handle datasets, repository_files, repository_tags
+            $repository->delete();
+
+            DB::commit();            
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Delete all files associated with a repository from storage.
+     */
+    public function deleteAttachedFiles(Repository $repository): void
+    {
+        $files = $repository->files()->where('type', 'file')->get();
+        
+        foreach ($files as $file) {
+            if ($file->file_ref) {
+                try {
+                    Storage::delete($file->file_ref);
+                } catch (Exception $e) {
+                    Log::warning("Failed to delete file from storage: {$file->file_ref}. Error: " . $e->getMessage());
+                }
+            }
+        }
     }
 }

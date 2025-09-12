@@ -33,6 +33,8 @@ use App\Http\Controllers\Api\V1\Datasets\GetDatasetsController;
 use App\Http\Controllers\Api\V1\Datasets\GetDatasetController;
 use App\Http\Controllers\Api\V1\Datasets\GetFilesController as DatasetGetFilesController;
 use App\Http\Controllers\Api\V1\Datasets\GetFileTreeController as DatasetGetFileTreeController;
+use App\Http\Controllers\Api\V1\Datasets\PatchDatasetController;
+use App\Http\Controllers\Api\V1\Datasets\DeleteDatasetController;
 
 /*
 |--------------------------------------------------------------------------
@@ -80,6 +82,8 @@ Route::group(['prefix' => 'v1'], function () {
             Route::get('/', GetDatasetsController::class)->name('v1.datasets.index');
             Route::post('/', PostDatasetController::class)->name('v1.datasets.store');
             Route::get('{uuid}', GetDatasetController::class)->name('v1.datasets.show');
+            Route::patch('{uuid}', PatchDatasetController::class)->name('v1.datasets.update');
+            Route::delete('{uuid}', DeleteDatasetController::class)->name('v1.datasets.destroy');
             Route::get('{uuid}/download', DatasetDownloadZipController::class)->name('v1.datasets.download');
             Route::get('{uuid}/files', DatasetGetFilesController::class)->name('v1.datasets.files.index');
             Route::get('{uuid}/tree', DatasetGetFileTreeController::class)->name('v1.datasets.tree.show');

@@ -16,11 +16,13 @@ use Exception;
 class DatasetsService
 {
     private FileSystemService $fileSystemService;
+    private RepositoryService $repositoryService;
 
-    public function __construct(FileSystemService $fileSystemService)
+    public function __construct(FileSystemService $fileSystemService, RepositoryService $repositoryService)
     {
         $this->fileSystemService = $fileSystemService;
         $this->fileSystemService->setContentType('datasets');
+        $this->repositoryService = $repositoryService;
     }
 
     /**
@@ -256,5 +258,106 @@ class DatasetsService
             // Sort by dataset fields (created_at, updated_at)
             $query->orderBy("datasets.{$sortBy}", $sortDirection);
         }
+    }
+
+    /**
+     * Delete a dataset and all associated files.
+     */
+    public function deleteDataset(Dataset $dataset): void
+    {
+        $this->repositoryService->deleteRepository($dataset->repository);
+    }
+
+    /**
+     * Update a dataset with new information and optionally replace the ZIP file.
+     */
+    public function updateDataset(Dataset $dataset, array $data, ?UploadedFile $zipFile = null): Dataset
+    {
+        DB::beginTransaction();
+        
+        try {
+            $repository = $dataset->repository;
+            $oldFileRef = null;
+            
+            if ($zipFile) {
+                $this->fileSystemService->validateZipFile($zipFile);
+                $oldFileRef = $repository->file_ref;
+                
+                $newFileRef = $this->generateFileReference($zipFile);
+                $this->uploadToStorage($zipFile, $newFileRef);
+                
+                $this->repositoryService->deleteAttachedFiles($repository);
+                $repository->files()->delete();
+                
+                $data['file_ref'] = $newFileRef;
+                $data['status'] = 'PENDING_REVIEW';
+                
+                // Update repository metadata (must be done before extraction)
+                $this->updateRepository($repository, $data);
+                
+                $this->fileSystemService->extractAndStoreZipContents($repository);
+                
+                if ($oldFileRef) {
+                    Storage::delete($oldFileRef);
+                }
+            } else {
+                $this->updateRepository($repository, $data);
+            }
+            
+            if (isset($data['tag_uuids'])) {
+                $this->updateTags($repository, $data['tag_uuids']);
+            }
+            
+            DB::commit();
+            
+            return $dataset->fresh([
+                'repository' => function ($query) {
+                    $query->withCount(['downloads', 'likes', 'comments']);
+                },
+                'repository.user', 
+                'repository.category', 
+                'repository.religiousMovement', 
+                'repository.tags'
+            ]);
+        } catch (Exception $e) {
+            DB::rollBack();
+            
+            if (isset($newFileRef)) {
+                Storage::delete($newFileRef);
+            }
+            
+            throw $e;
+        }
+    }
+
+    /**
+     * Update repository metadata.
+     */
+    private function updateRepository(Repository $repository, array $data): void
+    {
+        $allowedFields = ['name', 'description', 'file_ref', 'status'];
+        $updateData = array_intersect_key($data, array_flip($allowedFields));
+        
+        // Handle UUID-based fields
+        if (isset($data['category_uuid'])) {
+            $updateData['category_id'] = $this->getCategoryIdByUuid($data['category_uuid']);
+        }
+        
+        if (isset($data['religious_movement_uuid'])) {
+            $updateData['religious_movement_id'] = $this->getReligiousMovementIdByUuid($data['religious_movement_uuid']);
+        }
+        
+        if (!empty($updateData)) {
+            $repository->update($updateData);
+        }
+    }
+
+    /**
+     * Update tags for a repository.
+     */
+    private function updateTags(Repository $repository, array $tagUuids): void
+    {
+        $tagIds = $this->getTagIdsByUuids($tagUuids);
+        $repository->tags()->sync($tagIds);
     }
 }
