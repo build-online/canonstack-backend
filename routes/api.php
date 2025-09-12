@@ -35,6 +35,9 @@ use App\Http\Controllers\Api\V1\Datasets\GetFilesController as DatasetGetFilesCo
 use App\Http\Controllers\Api\V1\Datasets\GetFileTreeController as DatasetGetFileTreeController;
 use App\Http\Controllers\Api\V1\Datasets\PatchDatasetController;
 use App\Http\Controllers\Api\V1\Datasets\DeleteDatasetController;
+use App\Http\Controllers\Api\V1\Datasets\PostLikeController as DatasetPostLikeController;
+use App\Http\Controllers\Api\V1\Datasets\PostUnlikeController as DatasetPostUnlikeController;
+use App\Http\Controllers\Api\V1\Datasets\PostCommentController as DatasetPostCommentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -87,6 +90,9 @@ Route::group(['prefix' => 'v1'], function () {
             Route::get('{uuid}/download', DatasetDownloadZipController::class)->name('v1.datasets.download');
             Route::get('{uuid}/files', DatasetGetFilesController::class)->name('v1.datasets.files.index');
             Route::get('{uuid}/tree', DatasetGetFileTreeController::class)->name('v1.datasets.tree.show');
+            Route::post('{uuid}/like', DatasetPostLikeController::class)->name('v1.datasets.like');
+            Route::post('{uuid}/unlike', DatasetPostUnlikeController::class)->name('v1.datasets.unlike');
+            Route::post('{uuid}/comments', DatasetPostCommentController::class)->name('v1.datasets.comments.store');
         });
 
         Route::prefix('files')->group(function () {
