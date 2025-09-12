@@ -8,6 +8,10 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Collection;
+use App\Models\Download;
+use App\Models\Like;
+use App\Models\Comment;
+use Carbon\Carbon;
 use Exception;
 
 class RepositoryService
@@ -197,5 +201,162 @@ class RepositoryService
         return $query->orderBy('created_at', 'desc')
             ->limit($limit)
             ->get();
+    }
+
+    /**
+     * Get trending repositories for a specific period.
+     */
+    public function getTrending(string $period): array
+    {
+        $dateRanges = $this->getDateRanges($period);
+        
+        $modelRepositories = $this->calculateTrendingByType('model', $dateRanges, 5);
+        $datasetRepositories = $this->calculateTrendingByType('dataset', $dateRanges, 5);
+        
+        return [
+            'period' => $period,
+            'models' => $modelRepositories,
+            'datasets' => $datasetRepositories,
+        ];
+    }
+
+    /**
+     * Calculate trending repositories by type (model or dataset).
+     */
+    private function calculateTrendingByType(string $type, array $dateRanges, int $limit): array
+    {
+        $repositories = $this->getRepositoriesByType($type);
+        $trending = [];
+
+        foreach ($repositories as $repository) {
+            $currentEngagement = $this->calculateEngagement($repository, $dateRanges['current']);
+            
+            $trendingData = [
+                'repository' => $repository,
+                'engagement_score' => $currentEngagement,
+                'percentage_change' => null,
+            ];
+
+            // Calculate percentage change for periods other than all_time
+            if (isset($dateRanges['previous'])) {
+                $previousEngagement = $this->calculateEngagement($repository, $dateRanges['previous']);
+                $trendingData['percentage_change'] = $this->calculatePercentageChange(
+                    $previousEngagement, 
+                    $currentEngagement
+                );
+            }
+
+            $trending[] = $trendingData;
+        }
+
+        $trending = collect($trending)
+            ->sortByDesc('engagement_score')
+            ->take($limit)
+            ->values()
+            ->toArray();
+
+        return $trending;
+    }
+
+    /**
+     * Get repositories by type with necessary relationships.
+     */
+    private function getRepositoriesByType(string $type): Collection
+    {
+        $relationshipName = $type === 'model' ? 'model' : 'dataset';
+        
+        return Repository::with([
+                'user:id,uuid,name,username', 
+                $relationshipName . ':id,uuid,repository_id'
+            ])
+            ->whereHas($relationshipName)
+            ->get();
+    }
+
+    /**
+     * Calculate engagement score for a repository in a date range.
+     */
+    private function calculateEngagement(Repository $repository, array $dateRange): int
+    {
+        $downloads = Download::where('repository_id', $repository->id)
+            ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+            ->count();
+
+        $likes = Like::where('repository_id', $repository->id)
+            ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+            ->count();
+
+        $comments = Comment::where('repository_id', $repository->id)
+            ->whereBetween('created_at', [$dateRange['start'], $dateRange['end']])
+            ->count();
+
+        return $downloads + $likes + $comments;
+    }
+
+    /**
+     * Calculate percentage change between two values.
+     */
+    private function calculatePercentageChange(int $previous, int $current): float
+    {
+        if ($previous === 0) {
+            return $current > 0 ? 100.0 : 0.0;
+        }
+
+        return round((($current - $previous) / $previous) * 100, 2);
+    }
+
+    /**
+     * Get date ranges for current and previous periods.
+     */
+    private function getDateRanges(string $period): array
+    {
+        $now = Carbon::now();
+        
+        switch ($period) {
+            case 'week':
+                return [
+                    'current' => [
+                        'start' => $now->copy()->subWeek()->startOfDay(),
+                        'end' => $now->copy()->endOfDay(),
+                    ],
+                    'previous' => [
+                        'start' => $now->copy()->subWeeks(2)->startOfDay(),
+                        'end' => $now->copy()->subWeek()->endOfDay(),
+                    ],
+                ];
+
+            case 'month':
+                return [
+                    'current' => [
+                        'start' => $now->copy()->subDays(30)->startOfDay(),
+                        'end' => $now->copy()->endOfDay(),
+                    ],
+                    'previous' => [
+                        'start' => $now->copy()->subDays(60)->startOfDay(),
+                        'end' => $now->copy()->subDays(30)->endOfDay(),
+                    ],
+                ];
+
+            case 'year':
+                return [
+                    'current' => [
+                        'start' => $now->copy()->subDays(365)->startOfDay(),
+                        'end' => $now->copy()->endOfDay(),
+                    ],
+                    'previous' => [
+                        'start' => $now->copy()->subDays(730)->startOfDay(),
+                        'end' => $now->copy()->subDays(365)->endOfDay(),
+                    ],
+                ];
+
+            case 'all_time':
+            default:
+                return [
+                    'current' => [
+                        'start' => Carbon::createFromDate(2000, 1, 1),
+                        'end' => $now->copy()->endOfDay(),
+                    ],
+                ];
+        }
     }
 }

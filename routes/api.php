@@ -41,6 +41,7 @@ use App\Http\Controllers\Api\V1\Datasets\PostCommentController as DatasetPostCom
 use App\Http\Controllers\Api\V1\Search\SearchRepositoriesController;
 use App\Http\Controllers\Api\V1\Stats\GetStatsController;
 use App\Http\Controllers\Api\V1\Featured\GetFeaturedRepositoriesController;
+use App\Http\Controllers\Api\V1\Trending\GetTrendingRepositoriesController;
 
 /*
 |--------------------------------------------------------------------------
@@ -115,6 +116,7 @@ Route::group(['prefix' => 'v1'], function () {
         Route::prefix('repositories')->group(function () {
             Route::get('featured', GetFeaturedRepositoriesController::class)->name('v1.repositories.featured');
             Route::get('search', SearchRepositoriesController::class)->name('v1.repositories.search');
+            Route::get('trending', GetTrendingRepositoriesController::class)->name('v1.repositories.trending');
         });
         
         Route::get('stats', GetStatsController::class)->name('v1.stats.general');
