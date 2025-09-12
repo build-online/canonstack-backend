@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\V1\Datasets\PostLikeController as DatasetPostLikeCo
 use App\Http\Controllers\Api\V1\Datasets\PostUnlikeController as DatasetPostUnlikeController;
 use App\Http\Controllers\Api\V1\Datasets\PostCommentController as DatasetPostCommentController;
 use App\Http\Controllers\Api\V1\Search\SearchRepositoriesController;
+use App\Http\Controllers\Api\V1\Stats\GetStatsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -111,5 +112,6 @@ Route::group(['prefix' => 'v1'], function () {
         Route::get('religious-movements', GetReligiousMovementsController::class)->name('v1.religious-movements.index');
         
         Route::get('search', SearchRepositoriesController::class)->name('v1.search.repositories');
+        Route::get('stats', GetStatsController::class)->name('v1.stats.general');
      });
 });
