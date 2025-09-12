@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\V1\Datasets\DeleteDatasetController;
 use App\Http\Controllers\Api\V1\Datasets\PostLikeController as DatasetPostLikeController;
 use App\Http\Controllers\Api\V1\Datasets\PostUnlikeController as DatasetPostUnlikeController;
 use App\Http\Controllers\Api\V1\Datasets\PostCommentController as DatasetPostCommentController;
+use App\Http\Controllers\Api\V1\Search\SearchRepositoriesController;
 
 /*
 |--------------------------------------------------------------------------
@@ -108,5 +109,7 @@ Route::group(['prefix' => 'v1'], function () {
         Route::get('categories', GetCategoriesController::class)->name('v1.categories.index');
         Route::get('tags', GetTagsController::class)->name('v1.tags.index');
         Route::get('religious-movements', GetReligiousMovementsController::class)->name('v1.religious-movements.index');
+        
+        Route::get('search', SearchRepositoriesController::class)->name('v1.search.repositories');
      });
 });

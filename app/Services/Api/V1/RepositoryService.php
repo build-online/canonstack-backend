@@ -7,6 +7,7 @@ use App\Services\Api\V1\FileSystemService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Collection;
 use Exception;
 
 class RepositoryService
@@ -150,5 +151,21 @@ class RepositoryService
                 }
             }
         }
+    }
+
+    /**
+     * Search repositories by name across models and datasets.
+     */
+    public function searchRepositories(string $query, int $limit = 5): Collection
+    {
+        return Repository::with(['user:id,uuid,name,username', 'model:id,uuid,repository_id', 'dataset:id,uuid,repository_id'])
+            ->where('name', 'LIKE', '%' . $query . '%')
+            ->where(function ($q) {
+                $q->whereHas('model')
+                  ->orWhereHas('dataset');
+            })
+            ->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get();
     }
 }
