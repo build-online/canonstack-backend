@@ -35,7 +35,8 @@ class GetMeController extends Controller
         return response()->sendResponse(
             $request->user(),
             $this->userTransformer,
-            'User retrieved successfully'
+            'User retrieved successfully',
+            ['religiousMovement']
         );
     }
 }
