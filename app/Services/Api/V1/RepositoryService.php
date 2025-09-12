@@ -168,4 +168,34 @@ class RepositoryService
             ->limit($limit)
             ->get();
     }
+
+    /**
+     * Get featured repositories ordered by creation date, with optional type filtering.
+     */
+    public function getFeaturedRepositories(?string $type = null, int $limit = 10): Collection
+    {
+        $query = Repository::with(['user:id,uuid,name,username', 'model:id,uuid,repository_id', 'dataset:id,uuid,repository_id']);
+
+        if ($type === 'models') {
+            $query->whereHas('model', function ($q) {
+                $q->where('is_featured', true);
+            });
+        } elseif ($type === 'datasets') {
+            $query->whereHas('dataset', function ($q) {
+                $q->where('is_featured', true);
+            });
+        } else {
+            $query->where(function ($q) {
+                $q->whereHas('model', function ($modelQuery) {
+                    $modelQuery->where('is_featured', true);
+                })->orWhereHas('dataset', function ($datasetQuery) {
+                    $datasetQuery->where('is_featured', true);
+                });
+            });
+        }
+
+        return $query->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get();
+    }
 }

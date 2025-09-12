@@ -33,7 +33,6 @@ class SearchRepositoriesController extends Controller
                 $repositories,
                 $this->searchTransformer,
                 'Search results retrieved successfully',
-                ['user']
             );
         } catch (Exception $e) {
             return response()->sendError(
