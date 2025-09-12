@@ -42,6 +42,8 @@ use App\Http\Controllers\Api\V1\Search\SearchRepositoriesController;
 use App\Http\Controllers\Api\V1\Stats\GetStatsController;
 use App\Http\Controllers\Api\V1\Featured\GetFeaturedRepositoriesController;
 use App\Http\Controllers\Api\V1\Trending\GetTrendingRepositoriesController;
+use App\Http\Controllers\Api\V1\Models\ReviewModelController;
+use App\Http\Controllers\Api\V1\Datasets\ReviewDatasetController;
 
 /*
 |--------------------------------------------------------------------------
@@ -82,7 +84,8 @@ Route::group(['prefix' => 'v1'], function () {
             Route::get('{uuid}/download', DownloadZipController::class)->name('v1.models.download');
             Route::post('{uuid}/like', PostLikeController::class)->name('v1.models.like');
             Route::post('{uuid}/unlike', PostUnlikeController::class)->name('v1.models.unlike');
-            Route::post('{uuid}/comments', PostCommentController::class)->name('v1.models.comments.store');    
+            Route::post('{uuid}/comments', PostCommentController::class)->name('v1.models.comments.store');
+            Route::patch('{uuid}/review', ReviewModelController::class)->name('v1.models.review');
         });
 
         Route::prefix('datasets')->group(function () {
@@ -97,6 +100,7 @@ Route::group(['prefix' => 'v1'], function () {
             Route::post('{uuid}/like', DatasetPostLikeController::class)->name('v1.datasets.like');
             Route::post('{uuid}/unlike', DatasetPostUnlikeController::class)->name('v1.datasets.unlike');
             Route::post('{uuid}/comments', DatasetPostCommentController::class)->name('v1.datasets.comments.store');
+            Route::patch('{uuid}/review', ReviewDatasetController::class)->name('v1.datasets.review');
         });
 
         Route::prefix('files')->group(function () {

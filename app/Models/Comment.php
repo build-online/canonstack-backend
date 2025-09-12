@@ -20,6 +20,7 @@ class Comment extends Model
         'repository_id',
         'text',
         'is_approver',
+        'is_from_approval_process',
     ];
 
     /**
@@ -27,6 +28,7 @@ class Comment extends Model
      */
     protected $casts = [
         'is_approver' => 'boolean',
+        'is_from_approval_process' => 'boolean',
     ];
 
     /**
