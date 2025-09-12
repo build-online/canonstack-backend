@@ -75,6 +75,14 @@ class Repository extends Model
     }
 
     /**
+     * Get the dataset for this repository.
+     */
+    public function dataset()
+    {
+        return $this->hasOne(Dataset::class);
+    }
+
+    /**
      * Get all files for this repository.
      */
     public function files()

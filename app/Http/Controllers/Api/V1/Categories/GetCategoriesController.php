@@ -17,11 +17,19 @@ class GetCategoriesController extends Controller
     }
 
     /**
-     * Get all categories ordered alphabetically.
+     * Get all categories ordered alphabetically with counts.
      */
     public function __invoke(): JsonResponse
     {
-        $categories = Category::orderBy('name', 'asc')->get();
+        $categories = Category::withCount([
+            'repositories as total_count',
+            'repositories as models_count' => function ($query) {
+                $query->whereHas('model');
+            },
+            'repositories as datasets_count' => function ($query) {
+                $query->whereHas('dataset');
+            }
+        ])->orderBy('name', 'asc')->get();
 
         return response()->sendResponse(
             $categories,
