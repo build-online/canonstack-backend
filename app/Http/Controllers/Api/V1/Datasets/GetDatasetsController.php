@@ -33,7 +33,7 @@ class GetDatasetsController extends Controller
                 $datasets,
                 $this->datasetTransformer,
                 'Datasets retrieved successfully',
-                ['repository', 'repository.user', 'repository.category', 'repository.religiousMovement', 'repository.tags', 'repository.approver'],
+                ['repository', 'repository.user', 'repository.category', 'repository.tags', 'repository.approver'],
             );
         } catch (Exception $e) {
             return response()->sendError(

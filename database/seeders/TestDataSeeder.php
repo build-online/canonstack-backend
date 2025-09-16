@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\Category;
 use App\Models\Tag;
-use App\Models\ReligiousMovement;
 use App\Models\User;
 
 class TestDataSeeder extends Seeder
@@ -43,19 +42,6 @@ class TestDataSeeder extends Seeder
             Tag::firstOrCreate($tag);
         }
 
-        // Create test religious movements
-        $movements = [
-            ['main_religion' => 'Christianity', 'branch' => 'Catholic'],
-            ['main_religion' => 'Christianity', 'branch' => 'Protestant'],
-            ['main_religion' => 'Christianity', 'branch' => 'Orthodox'],
-            ['main_religion' => 'Christianity', 'branch' => 'Anglican'],
-        ];
-
-        foreach ($movements as $movement) {
-            ReligiousMovement::firstOrCreate($movement);
-        }
-
-        $religiousMovement = ReligiousMovement::first();
 
         // Create a test user if it doesn't exist
         User::firstOrCreate(
@@ -77,14 +63,12 @@ class TestDataSeeder extends Seeder
                 'password' => bcrypt('password123'),
                 'email_verified_at' => now(),
                 'role' => 'APPROVER',
-                'religious_movement_id' => $religiousMovement->id,
             ]
         );
 
         $this->command->info('Test data seeded successfully!');
         $this->command->info('Categories: ' . Category::count());
         $this->command->info('Tags: ' . Tag::count());
-        $this->command->info('Religious Movements: ' . ReligiousMovement::count());
         $this->command->info('Users: ' . User::count());
         $this->command->info('');
         $this->command->info('Test user credentials:');

@@ -27,29 +27,22 @@ class ReviewService
             
             if ($repository->model) {
                 $model = $repository->model;
-                return $model->fresh(['repository.user', 'repository.category', 'repository.religiousMovement']);
+                return $model->fresh(['repository.user', 'repository.category']);
             }
 
             $dataset = $repository->dataset;
-            return $dataset->fresh(['repository.user', 'repository.category', 'repository.religiousMovement']);
+            return $dataset->fresh(['repository.user', 'repository.category']);
         });
     }
 
     /**
      * Validate that the approver has authority to review this repository.
+     * All approvers can now review any repository.
      */
     public function validateApproverAuthority(User $approver, Repository $repository): void
     {
         if ($approver->role !== 'APPROVER') {
             throw new Exception('User must be an approver to review repositories.');
-        }
-
-        if (!$approver->religious_movement_id) {
-            throw new Exception('Approver must have a religious movement assigned.');
-        }
-
-        if ($approver->religious_movement_id !== $repository->religious_movement_id) {
-            throw new Exception('Approver can only review repositories from their own religious movement.');
         }
 
         if ($repository->status !== 'PENDING_REVIEW') {
@@ -79,7 +72,7 @@ class ReviewService
             'user_id' => $approver->id,
             'repository_id' => $repository->id,
             'text' => $commentText,
-            'is_approver' => true, // Since this is from an approver in their religious movement
+            'is_approver' => true, // Since this is from an approver
             'is_from_approval_process' => true,
         ]);
     }

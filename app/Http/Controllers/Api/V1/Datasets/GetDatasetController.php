@@ -29,7 +29,6 @@ class GetDatasetController extends Controller
                 },
                 'repository.user',
                 'repository.category',
-                'repository.religiousMovement',
                 'repository.tags',
                 'repository.approver',
                 'repository.comments',
@@ -42,7 +41,7 @@ class GetDatasetController extends Controller
                 $dataset,
                 $this->datasetTransformer,
                 'Dataset retrieved successfully',
-                ['repository', 'repository.user', 'repository.category', 'repository.religiousMovement', 'repository.tags', 'repository.approver', 'repository.comments', 'repository.comments.user'],
+                ['repository', 'repository.user', 'repository.category', 'repository.tags', 'repository.approver', 'repository.comments', 'repository.comments.user'],
             );
         } catch (Exception $e) {
             return response()->sendError(

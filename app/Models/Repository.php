@@ -19,7 +19,6 @@ class Repository extends Model
         'status',
         'category_id',
         'approved_by',
-        'religious_movement_id',
     ];
 
     protected $casts = [
@@ -42,13 +41,6 @@ class Repository extends Model
         return $this->belongsTo(Category::class);
     }
 
-    /**
-     * Get the religious movement that the repository belongs to.
-     */
-    public function religiousMovement()
-    {
-        return $this->belongsTo(ReligiousMovement::class);
-    }
 
     /**
      * Get the user who approved this repository.

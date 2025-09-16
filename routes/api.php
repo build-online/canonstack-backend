@@ -21,7 +21,6 @@ use App\Http\Controllers\Api\V1\Files\DownloadFileController;
 use App\Http\Controllers\Api\V1\Models\DownloadZipController;
 use App\Http\Controllers\Api\V1\Categories\GetCategoriesController;
 use App\Http\Controllers\Api\V1\Tags\GetTagsController;
-use App\Http\Controllers\Api\V1\ReligiousMovements\GetReligiousMovementsController;
 use App\Http\Controllers\Api\V1\Models\PostLikeController;
 use App\Http\Controllers\Api\V1\Models\PostUnlikeController;
 use App\Http\Controllers\Api\V1\Models\PostCommentController;
@@ -115,7 +114,6 @@ Route::group(['prefix' => 'v1'], function () {
 
         Route::get('categories', GetCategoriesController::class)->name('v1.categories.index');
         Route::get('tags', GetTagsController::class)->name('v1.tags.index');
-        Route::get('religious-movements', GetReligiousMovementsController::class)->name('v1.religious-movements.index');
         
         Route::prefix('repositories')->group(function () {
             Route::get('featured', GetFeaturedRepositoriesController::class)->name('v1.repositories.featured');

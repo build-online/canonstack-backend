@@ -7,9 +7,7 @@ use League\Fractal\TransformerAbstract;
 
 class UserTransformer extends TransformerAbstract
 {
-    protected array $availableIncludes = [
-        'religiousMovement'
-    ];
+    protected array $availableIncludes = [];
 
     /**
      * A Fractal transformer.
@@ -26,16 +24,5 @@ class UserTransformer extends TransformerAbstract
             'email' => $user->email,
             'role' => $user->role,
         ];
-    }
-
-    /**
-     * Include religious movement.
-     */
-    public function includeReligiousMovement(User $user)
-    {
-        if ($user->religiousMovement) {
-            return $this->item($user->religiousMovement, new ReligiousMovementTransformer());
-        }
-        return $this->null();
     }
 }
