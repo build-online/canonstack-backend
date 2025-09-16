@@ -32,7 +32,8 @@ class GetDatasetController extends Controller
                 'repository.tags',
                 'repository.approver',
                 'repository.comments',
-                'repository.comments.user'
+                'repository.comments.user',
+                'repository.likes.user:id,uuid'
             ])
             ->firstOrFail();
 

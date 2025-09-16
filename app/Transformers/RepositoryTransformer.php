@@ -18,7 +18,7 @@ class RepositoryTransformer extends TransformerAbstract
 
     public function transform(Repository $repository): array
     {
-        return [
+        $data = [
             'uuid' => $repository->uuid,
             'name' => $repository->name,
             'description' => $repository->description,
@@ -30,6 +30,21 @@ class RepositoryTransformer extends TransformerAbstract
             'created_at' => $repository->created_at->toISOString(),
             'updated_at' => $repository->updated_at->toISOString(),
         ];
+
+        if ($repository->relationLoaded('likes') && 
+            $repository->likes->isNotEmpty() && 
+            $repository->likes->first()->relationLoaded('user')) {
+            
+            $likedByUserUuids = $repository->likes
+                ->pluck('user.uuid')
+                ->filter()
+                ->values()
+                ->toArray();
+            
+            $data['liked_by_user_uuids'] = $likedByUserUuids;
+        }
+
+        return $data;
     }
 
     public function includeUser(Repository $repository)
