@@ -43,6 +43,7 @@ class RepositoryTransformer extends TransformerAbstract
             'size_human' => $totalSizeHuman,
             'created_at' => $repository->created_at->toISOString(),
             'updated_at' => $repository->updated_at->toISOString(),
+            'updated_at_human' => $repository->updated_at->diffForHumans(),
         ];
 
         if ($repository->relationLoaded('likes') && 
