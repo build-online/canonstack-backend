@@ -18,6 +18,18 @@ class RepositoryTransformer extends TransformerAbstract
 
     public function transform(Repository $repository): array
     {
+        if (isset($repository->stats)) {
+            $totalSize = $repository->stats['total_size'];
+            $totalSizeHuman = $repository->stats['total_size_human'];
+        } else {
+            if ($repository->relationLoaded('files')) {
+                $totalSize = $repository->files->where('type', 'file')->sum('size');
+            } else {
+                $totalSize = $repository->files()->where('type', 'file')->sum('size');
+            }
+            $totalSizeHuman = $this->formatBytes($totalSize);
+        }
+
         $data = [
             'uuid' => $repository->uuid,
             'name' => $repository->name,
@@ -27,6 +39,8 @@ class RepositoryTransformer extends TransformerAbstract
             'downloads_count' => $repository->downloads_count ?? $repository->downloads()->count(),
             'likes_count' => $repository->likes_count ?? $repository->likes()->count(),
             'comments_count' => $repository->comments_count ?? $repository->comments()->count(),
+            'size' => $totalSize,
+            'size_human' => $totalSizeHuman,
             'created_at' => $repository->created_at->toISOString(),
             'updated_at' => $repository->updated_at->toISOString(),
         ];
@@ -88,5 +102,23 @@ class RepositoryTransformer extends TransformerAbstract
     public function includeComments(Repository $repository)
     {
         return $this->collection($repository->comments()->with('user')->orderBy('created_at', 'desc')->get(), new CommentTransformer());
+    }
+
+    /**
+     * Format bytes into human readable format.
+     */
+    private function formatBytes($bytes): string
+    {
+        if ($bytes == 0) {
+            return '0 B';
+        }
+
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        
+        for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
+            $bytes /= 1024;
+        }
+        
+        return round($bytes, 2) . ' ' . $units[$i];
     }
 }

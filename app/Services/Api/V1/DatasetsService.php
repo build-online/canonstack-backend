@@ -154,7 +154,8 @@ class DatasetsService
                 },
                 'repository.user:id,uuid,name,username,email,role', 
                 'repository.category:id,uuid,name', 
-                'repository.tags:id,uuid,name'
+                'repository.tags:id,uuid,name',
+                'repository.files:id,repository_id,type,size'
             ]);
 
         // Apply filters
@@ -164,12 +165,22 @@ class DatasetsService
         $this->applyDatasetSorting($query, $filters);
 
         // Return paginated results
-        return $query->paginate(
+        $datasets = $query->paginate(
             $filters['per_page'],
             ['*'],
             'page',
             $filters['page']
         );
+
+        $datasets->getCollection()->transform(function ($dataset) {
+            if ($dataset->repository) {
+                $stats = $this->repositoryService->getRepositoryStats($dataset->repository);
+                $dataset->repository->setAttribute('stats', $stats);
+            }
+            return $dataset;
+        });
+
+        return $datasets;
     }
 
     /**

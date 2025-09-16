@@ -33,7 +33,8 @@ class GetDatasetController extends Controller
                 'repository.approver',
                 'repository.comments',
                 'repository.comments.user',
-                'repository.likes.user:id,uuid'
+                'repository.likes.user:id,uuid',
+                'repository.files:id,repository_id,type,size'
             ])
             ->firstOrFail();
 
