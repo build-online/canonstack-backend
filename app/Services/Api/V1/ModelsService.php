@@ -239,7 +239,8 @@ class ModelsService
                 },
                 'repository.user:id,uuid,name,username,email,role', 
                 'repository.category:id,uuid,name', 
-                'repository.tags:id,uuid,name'
+                'repository.tags:id,uuid,name',
+                'repository.files:id,repository_id,type,size'
             ]);
 
         // Apply filters
@@ -249,12 +250,22 @@ class ModelsService
         $this->applyModelSorting($query, $filters);
 
         // Return paginated results
-        return $query->paginate(
+        $models = $query->paginate(
             $filters['per_page'],
             ['*'],
             'page',
             $filters['page']
         );
+
+        $models->getCollection()->transform(function ($model) {
+            if ($model->repository) {
+                $stats = $this->repositoryService->getRepositoryStats($model->repository);
+                $model->repository->setAttribute('stats', $stats);
+            }
+            return $model;
+        });
+
+        return $models;
     }
 
     /**
