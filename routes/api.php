@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\Tags\GetTagsController;
 use App\Http\Controllers\Api\V1\Models\PostLikeController;
 use App\Http\Controllers\Api\V1\Models\PostUnlikeController;
 use App\Http\Controllers\Api\V1\Models\PostCommentController;
+use App\Http\Controllers\Api\V1\Comments\GetCommentsController;
 use App\Http\Controllers\Api\V1\Comments\PatchCommentController;
 use App\Http\Controllers\Api\V1\Comments\DeleteCommentController;
 use App\Http\Controllers\Api\V1\Datasets\PostDatasetController;
@@ -108,6 +109,7 @@ Route::group(['prefix' => 'v1'], function () {
         });
         
         Route::prefix('comments')->group(function () {
+            Route::get('/', GetCommentsController::class)->name('v1.comments.index');
             Route::patch('{uuid}', PatchCommentController::class)->name('v1.comments.update');
             Route::delete('{uuid}', DeleteCommentController::class)->name('v1.comments.destroy');
         });
