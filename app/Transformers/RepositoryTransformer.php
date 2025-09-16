@@ -10,7 +10,6 @@ class RepositoryTransformer extends TransformerAbstract
     protected array $availableIncludes = [
         'user',
         'category',
-        'religiousMovement',
         'tags',
         'model',
         'approver',
@@ -49,13 +48,6 @@ class RepositoryTransformer extends TransformerAbstract
         return $this->null();
     }
 
-    public function includeReligiousMovement(Repository $repository)
-    {
-        if ($repository->religiousMovement) {
-            return $this->item($repository->religiousMovement, new ReligiousMovementTransformer());
-        }
-        return $this->null();
-    }
 
     public function includeTags(Repository $repository)
     {

@@ -54,11 +54,6 @@ class GetDatasetsRequest extends FormRequest
                 'string',
                 'exists:users,uuid'
             ],
-            'religious_movement_uuid' => [
-                'sometimes',
-                'string',
-                'exists:religious_movements,uuid'
-            ],
             'status' => [
                 'sometimes',
                 'string',
@@ -93,7 +88,6 @@ class GetDatasetsRequest extends FormRequest
             'tag_uuid.exists' => 'The selected tag is invalid.',
             'tag_uuids.*.exists' => 'One or more selected tags are invalid.',
             'user_uuid.exists' => 'The selected user is invalid.',
-            'religious_movement_uuid.exists' => 'The selected religious movement is invalid.',
             'status.in' => 'Status must be one of: PENDING_REVIEW, APPROVED, REJECTED.',
             'sort_by.in' => 'Sort field must be one of: name, created_at, updated_at, status.',
             'sort_direction.in' => 'Sort direction must be either asc or desc.',
@@ -114,7 +108,6 @@ class GetDatasetsRequest extends FormRequest
             'tag_uuid' => $validated['tag_uuid'] ?? null,
             'tag_uuids' => $validated['tag_uuids'] ?? null,
             'user_uuid' => $validated['user_uuid'] ?? null,
-            'religious_movement_uuid' => $validated['religious_movement_uuid'] ?? null,
             'status' => $validated['status'] ?? null,
             'name' => $validated['name'] ?? null,
             'sort_by' => $validated['sort_by'] ?? 'created_at',

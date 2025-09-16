@@ -43,7 +43,7 @@ class ReviewModelController extends Controller
                 $model,
                 $this->modelTransformer,
                 $message,
-                ['repository', 'repository.user', 'repository.category', 'repository.religiousMovement']
+                ['repository', 'repository.user', 'repository.category']
             );
         } catch (Exception $e) {
             return response()->sendError(

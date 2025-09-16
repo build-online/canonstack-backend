@@ -5,7 +5,6 @@ namespace App\Services\Api\V1;
 use App\Models\Repository;
 use App\Models\ModelRepository;
 use App\Models\Category;
-use App\Models\ReligiousMovement;
 use App\Models\Tag;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -54,7 +53,6 @@ class ModelsService
                 },
                 'repository.user', 
                 'repository.category', 
-                'repository.religiousMovement', 
                 'repository.tags'
             ]);
             
@@ -109,7 +107,6 @@ class ModelsService
             'description' => $data['description'],
             'file_ref' => $fileRef,
             'category_id' => $this->getCategoryIdByUuid($data['category_uuid']),
-            'religious_movement_id' => $this->getReligiousMovementIdByUuid($data['religious_movement_uuid']),
             'status' => 'PENDING_REVIEW',
         ]);
     }
@@ -189,7 +186,6 @@ class ModelsService
                 },
                 'repository.user', 
                 'repository.category', 
-                'repository.religiousMovement', 
                 'repository.tags'
             ]);
         } catch (Exception $e) {
@@ -216,9 +212,6 @@ class ModelsService
             $updateData['category_id'] = $this->getCategoryIdByUuid($data['category_uuid']);
         }
         
-        if (isset($data['religious_movement_uuid'])) {
-            $updateData['religious_movement_id'] = $this->getReligiousMovementIdByUuid($data['religious_movement_uuid']);
-        }
         
         if (!empty($updateData)) {
             $repository->update($updateData);
@@ -246,7 +239,6 @@ class ModelsService
                 },
                 'repository.user:id,uuid,name,username,email,role', 
                 'repository.category:id,uuid,name', 
-                'repository.religiousMovement:id,uuid,main_religion,branch', 
                 'repository.tags:id,uuid,name'
             ]);
 
@@ -300,12 +292,6 @@ class ModelsService
             });
         }
 
-        // Filter by religious movement UUID
-        if ($filters['religious_movement_uuid']) {
-            $query->whereHas('repository.religiousMovement', function ($q) use ($filters) {
-                $q->where('uuid', $filters['religious_movement_uuid']);
-            });
-        }
 
         // Filter by status
         if ($filters['status']) {
@@ -349,13 +335,6 @@ class ModelsService
         return Category::where('uuid', $uuid)->first()->id;
     }
 
-    /**
-     * Get religious movement ID by UUID.
-     */
-    private function getReligiousMovementIdByUuid(string $uuid): int
-    {
-        return ReligiousMovement::where('uuid', $uuid)->first()->id;
-    }
 
     /**
      * Get tag IDs by UUIDs.

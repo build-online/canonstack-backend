@@ -4,7 +4,6 @@ namespace App\Services\Api\V1;
 
 use App\Models\Dataset;
 use App\Models\Repository;
-use App\Models\ReligiousMovement;
 use App\Models\Category;
 use App\Models\Tag;
 use Illuminate\Http\UploadedFile;
@@ -55,7 +54,6 @@ class DatasetsService
                 },
                 'repository.user',
                 'repository.category',
-                'repository.religiousMovement',
                 'repository.tags'
             ]);
         } catch (Exception $e) {
@@ -102,7 +100,6 @@ class DatasetsService
             'uuid' => Str::uuid(),
             'user_id' => auth()->id(),
             'category_id' => $this->getCategoryIdByUuid($data['category_uuid']),
-            'religious_movement_id' => $this->getReligiousMovementIdByUuid($data['religious_movement_uuid']),
             'name' => $data['name'],
             'description' => $data['description'],
             'file_ref' => $fileRef,
@@ -138,14 +135,6 @@ class DatasetsService
     }
 
     /**
-     * Get religious movement ID by UUID.
-     */
-    private function getReligiousMovementIdByUuid(string $uuid): int
-    {
-        return ReligiousMovement::where('uuid', $uuid)->first()->id;
-    }
-
-    /**
      * Get tag IDs by UUIDs.
      */
     private function getTagIdsByUuids(array $uuids): array
@@ -165,7 +154,6 @@ class DatasetsService
                 },
                 'repository.user:id,uuid,name,username,email,role', 
                 'repository.category:id,uuid,name', 
-                'repository.religiousMovement:id,uuid,main_religion,branch', 
                 'repository.tags:id,uuid,name'
             ]);
 
@@ -216,13 +204,6 @@ class DatasetsService
         if ($filters['user_uuid']) {
             $query->whereHas('repository.user', function ($q) use ($filters) {
                 $q->where('uuid', $filters['user_uuid']);
-            });
-        }
-
-        // Filter by religious movement UUID
-        if ($filters['religious_movement_uuid']) {
-            $query->whereHas('repository.religiousMovement', function ($q) use ($filters) {
-                $q->where('uuid', $filters['religious_movement_uuid']);
             });
         }
 
@@ -316,7 +297,6 @@ class DatasetsService
                 },
                 'repository.user', 
                 'repository.category', 
-                'repository.religiousMovement', 
                 'repository.tags'
             ]);
         } catch (Exception $e) {
@@ -341,10 +321,6 @@ class DatasetsService
         // Handle UUID-based fields
         if (isset($data['category_uuid'])) {
             $updateData['category_id'] = $this->getCategoryIdByUuid($data['category_uuid']);
-        }
-        
-        if (isset($data['religious_movement_uuid'])) {
-            $updateData['religious_movement_id'] = $this->getReligiousMovementIdByUuid($data['religious_movement_uuid']);
         }
         
         if (!empty($updateData)) {

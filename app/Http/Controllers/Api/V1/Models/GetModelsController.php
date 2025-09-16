@@ -33,7 +33,7 @@ class GetModelsController extends Controller
                 $models,
                 $this->modelRepositoryTransformer,
                 'Models retrieved successfully',
-                ['repository', 'repository.user', 'repository.category', 'repository.religiousMovement', 'repository.tags', 'repository.approver'],
+                ['repository', 'repository.user', 'repository.category', 'repository.tags', 'repository.approver'],
             );
         } catch (Exception $e) {
             return response()->sendError(

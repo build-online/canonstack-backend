@@ -36,7 +36,6 @@ class GetMeController extends Controller
             $request->user(),
             $this->userTransformer,
             'User retrieved successfully',
-            ['religiousMovement']
         );
     }
 }

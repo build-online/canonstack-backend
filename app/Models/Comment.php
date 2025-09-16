@@ -49,14 +49,11 @@ class Comment extends Model
 
     /**
      * Determine if the comment should be marked as made by approver.
-     * An approver comment is when:
-     * 1. User role is 'approver'
-     * 2. User's religious_movement_id matches repository's religious_movement_id
+     * An approver comment is when user role is 'APPROVER'.
+     * All approvers can now approve any repository.
      */
     public static function isApproverComment(User $user, Repository $repository): bool
     {
-        return $user->role === 'APPROVER' 
-               && $user->religious_movement_id === $repository->religious_movement_id
-               && !is_null($user->religious_movement_id);
+        return $user->role === 'APPROVER';
     }
 }

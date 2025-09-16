@@ -43,7 +43,7 @@ class ReviewDatasetController extends Controller
                 $dataset,
                 $this->datasetTransformer,
                 $message,
-                ['repository', 'repository.user', 'repository.category', 'repository.religiousMovement']
+                ['repository', 'repository.user', 'repository.category']
             );
         } catch (Exception $e) {
             return response()->sendError(

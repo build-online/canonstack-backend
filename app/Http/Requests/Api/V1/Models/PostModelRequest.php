@@ -53,11 +53,6 @@ class PostModelRequest extends FormRequest
                 'string',
                 'exists:tags,uuid'
             ],
-            'religious_movement_uuid' => [
-                'required',
-                'string',
-                'exists:religious_movements,uuid'
-            ]
         ];
     }
 
@@ -75,7 +70,6 @@ class PostModelRequest extends FormRequest
             'tag_uuids.required' => 'At least one tag must be selected.',
             'tag_uuids.*.exists' => 'One or more selected tags are invalid.',
             'category_uuid.exists' => 'The selected category is invalid.',
-            'religious_movement_uuid.exists' => 'The selected religious movement is invalid.',
         ];
     }
 }
