@@ -178,7 +178,15 @@ class RepositoryService
      */
     public function getFeaturedRepositories(?string $type = null, int $limit = 10): Collection
     {
-        $query = Repository::with(['user:id,uuid,name,username', 'model:id,uuid,repository_id', 'dataset:id,uuid,repository_id']);
+        $query = Repository::with([
+            'user:id,uuid,name,username,email,role',
+            'model:id,uuid,repository_id', 
+            'dataset:id,uuid,repository_id',
+            'category:id,uuid,name',
+            'tags:id,uuid,name',
+            'approver:id,uuid,name,username,email,role',
+            'files:id,repository_id,type,size'
+        ])->withCount(['downloads', 'likes', 'comments']);
 
         if ($type === 'models') {
             $query->whereHas('model', function ($q) {
@@ -198,9 +206,18 @@ class RepositoryService
             });
         }
 
-        return $query->orderBy('created_at', 'desc')
+        $repositories = $query->orderBy('created_at', 'desc')
             ->limit($limit)
             ->get();
+
+        // Add repository stats to each repository
+        $repositories->transform(function ($repository) {
+            $stats = $this->getRepositoryStats($repository);
+            $repository->setAttribute('stats', $stats);
+            return $repository;
+        });
+
+        return $repositories;
     }
 
     /**
@@ -265,12 +282,26 @@ class RepositoryService
     {
         $relationshipName = $type === 'model' ? 'model' : 'dataset';
         
-        return Repository::with([
-                'user:id,uuid,name,username', 
-                $relationshipName . ':id,uuid,repository_id'
+        $repositories = Repository::with([
+                'user:id,uuid,name,username,email,role',
+                $relationshipName . ':id,uuid,repository_id',
+                'category:id,uuid,name',
+                'tags:id,uuid,name',
+                'approver:id,uuid,name,username,email,role',
+                'files:id,repository_id,type,size'
             ])
+            ->withCount(['downloads', 'likes', 'comments'])
             ->whereHas($relationshipName)
             ->get();
+
+        // Add repository stats to each repository
+        $repositories->transform(function ($repository) {
+            $stats = $this->getRepositoryStats($repository);
+            $repository->setAttribute('stats', $stats);
+            return $repository;
+        });
+
+        return $repositories;
     }
 
     /**
