@@ -37,7 +37,7 @@ class PostModelRequest extends FormRequest
             'description' => [
                 'required',
                 'string',
-                'max:1000'
+                'max:10000' // Increased limit to support HTML content
             ],
             'category_uuid' => [
                 'required',

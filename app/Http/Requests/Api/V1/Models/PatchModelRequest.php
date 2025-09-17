@@ -39,7 +39,7 @@ class PatchModelRequest extends FormRequest
                 'sometimes',
                 'required',
                 'string',
-                'max:1000'
+                'max:10000' // Increased limit to support HTML content
             ],
             'category_uuid' => [
                 'sometimes',
