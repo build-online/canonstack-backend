@@ -17,6 +17,7 @@ class StatsTransformer extends TransformerAbstract
         return [
             'total_downloads' => (int) $stats['total_downloads'],
             'total_users' => (int) $stats['total_users'],
+            'total_likes' => (int) $stats['total_likes'],
             'approved_models' => (int) $stats['approved_models'],
             'charged_models' => (int) $stats['charged_models'],
             'approved_datasets' => (int) $stats['approved_datasets'],
