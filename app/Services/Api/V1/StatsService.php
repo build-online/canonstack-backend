@@ -7,6 +7,7 @@ use App\Models\Download;
 use App\Models\ModelRepository;
 use App\Models\Dataset;
 use App\Models\Repository;
+use App\Models\Like;
 use Exception;
 
 class StatsService
@@ -28,6 +29,7 @@ class StatsService
             return [
                 'total_downloads' => $this->getTotalDownloads(),
                 'total_users' => $this->getTotalUsers(),
+                'total_likes' => $this->getTotalLikes(),
                 'approved_models' => $approvedModels,
                 'charged_models' => $chargedModels,
                 'approved_datasets' => $approvedDatasets,
@@ -90,5 +92,13 @@ class StatsService
     private function getChargedDatasets(): int
     {
         return Dataset::count();
+    }
+
+    /**
+     * Get total number of likes across all repositories.
+     */
+    private function getTotalLikes(): int
+    {
+        return Like::count();
     }
 }
