@@ -62,10 +62,10 @@ Route::redirect('v1/sanctum/csrf-cookie', '/sanctum/csrf-cookie');
 
 Route::group(['prefix' => 'v1'], function () {
     Route::prefix('auth')->group(function () {
-        Route::post('login', PostLoginController::class)->name('v1.auth.login');
-        Route::post('register', PostRegisterController::class)->name('v1.auth.register');
-        Route::post('request-password-reset', RequestPasswordResetController::class)->name('api.v1.auth.request-password-reset');
-        Route::post('password-reset', PasswordResetController::class)->name('api.v1.auth.password-reset');
+        Route::post('login', PostLoginController::class)->name('v1.auth.login')->middleware('throttle:login');
+        Route::post('register', PostRegisterController::class)->name('v1.auth.register')->middleware('throttle:auth');
+        Route::post('request-password-reset', RequestPasswordResetController::class)->name('api.v1.auth.request-password-reset')->middleware('throttle:auth');
+        Route::post('password-reset', PasswordResetController::class)->name('api.v1.auth.password-reset')->middleware('throttle:auth');
         
         Route::group(['middleware' => ['auth:sanctum']], function () {
             Route::post('logout', PostLogoutController::class)->name('v1.auth.logout');
