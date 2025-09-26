@@ -90,7 +90,7 @@ return [
             
             // AI/ML Model formats
             'h5', 'hdf5', 'pkl', 'pickle', 'pth', 'pt', 'ckpt', 'pb', 'tflite', 'onnx', 'mlmodel',
-            'safetensors', 'bin', 'msgpack', 'npz', 'npy',
+            'safetensors', 'bin', 'msgpack', 'npz', 'npy', 'jinja', 'jinja2', 'j2',
             
             // Configuration and metadata
             'json', 'yaml', 'yml', 'toml', 'xml', 'config', 'cfg', 'ini',
