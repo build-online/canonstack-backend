@@ -1,0 +1,124 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use App\Models\Traits\HasUuid;
+
+class Repository extends Model
+{
+    use HasFactory, HasUuid;
+
+    protected $fillable = [
+        'uuid',
+        'user_id',
+        'name',
+        'description',
+        'file_ref',
+        'status',
+        'category_id',
+        'approved_by',
+    ];
+
+    protected $casts = [
+        'status' => 'string',
+    ];
+
+    /**
+     * Get the user that owns the repository.
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the category that the repository belongs to.
+     */
+    public function category()
+    {
+        return $this->belongsTo(Category::class);
+    }
+
+
+    /**
+     * Get the user who approved this repository.
+     */
+    public function approver()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /**
+     * Get the tags for this repository.
+     */
+    public function tags()
+    {
+        return $this->belongsToMany(Tag::class, 'repository_tags');
+    }
+
+    /**
+     * Get the model for this repository.
+     */
+    public function model()
+    {
+        return $this->hasOne(ModelRepository::class);
+    }
+
+    /**
+     * Get the dataset for this repository.
+     */
+    public function dataset()
+    {
+        return $this->hasOne(Dataset::class);
+    }
+
+    /**
+     * Get all files for this repository.
+     */
+    public function files()
+    {
+        return $this->hasMany(RepositoryFile::class);
+    }
+
+    /**
+     * Get root level files and folders.
+     */
+    public function rootFiles()
+    {
+        return $this->hasMany(RepositoryFile::class)->root();
+    }
+
+    /**
+     * Get all downloads for this repository.
+     */
+    public function downloads()
+    {
+        return $this->hasMany(Download::class);
+    }
+
+    /**
+     * Get all likes for this repository.
+     */
+    public function likes()
+    {
+        return $this->hasMany(Like::class);
+    }
+
+    /**
+     * Get all comments for this repository.
+     */
+    public function comments()
+    {
+        return $this->hasMany(Comment::class);
+    }
+
+    /**
+     * Get all approval history for this repository.
+     */
+    public function approvalHistory()
+    {
+        return $this->hasMany(ApprovalHistory::class);
+    }
+}
