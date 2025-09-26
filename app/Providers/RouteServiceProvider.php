@@ -56,8 +56,22 @@ class RouteServiceProvider extends ServiceProvider
      */
     protected function configureRateLimiting()
     {
+        // Default API rate limit - more generous for production use
         RateLimiter::for('api', function (Request $request) {
-            return Limit::perMinute(60)->by(optional($request->user())->id ?: $request->ip());
+            $perMinute = env('API_RATE_LIMIT_PER_MINUTE', 300); // Default: 300 requests per minute
+            return Limit::perMinute($perMinute)->by(optional($request->user())->id ?: $request->ip());
+        });
+
+        // Stricter rate limit for authentication endpoints
+        RateLimiter::for('auth', function (Request $request) {
+            $perMinute = env('AUTH_RATE_LIMIT_PER_MINUTE', 10); // Default: 10 requests per minute
+            return Limit::perMinute($perMinute)->by($request->ip());
+        });
+
+        // Even stricter rate limit for login attempts
+        RateLimiter::for('login', function (Request $request) {
+            $perMinute = env('LOGIN_RATE_LIMIT_PER_MINUTE', 5); // Default: 5 attempts per minute
+            return Limit::perMinute($perMinute)->by($request->email . '|' . $request->ip());
         });
     }
 }
