@@ -7,12 +7,18 @@ use App\Models\ModelRepository;
 use App\Models\Dataset;
 use App\Models\Comment;
 use App\Models\User;
-use App\Models\ApprovalHistory;
+use App\Services\Api\V1\ApprovalHistoryService;
 use Illuminate\Support\Facades\DB;
 use Exception;
 
 class ReviewService
 {
+    private ApprovalHistoryService $approvalHistoryService;
+
+    public function __construct(ApprovalHistoryService $approvalHistoryService)
+    {
+        $this->approvalHistoryService = $approvalHistoryService;
+    }
     /**
      * Review a model (approve or decline).
      */
@@ -26,8 +32,8 @@ class ReviewService
             
             $this->updateRepositoryStatus($repository, $reviewData['action'], $approver);
             
-            // Create approval history record
-            $this->createApprovalHistory(
+            // Create approval history record using ApprovalHistoryService
+            $this->approvalHistoryService->createApprovalHistory(
                 $repository,
                 $approver,
                 $reviewData['action'],
@@ -92,24 +98,4 @@ class ReviewService
         ]);
     }
 
-    /**
-     * Create an approval history record.
-     */
-    private function createApprovalHistory(
-        Repository $repository,
-        User $approver,
-        string $action,
-        string $previousStatus,
-        string $newStatus,
-        ?string $comment = null
-    ): ApprovalHistory {
-        return ApprovalHistory::create([
-            'repository_id' => $repository->id,
-            'approver_id' => $approver->id,
-            'action' => $action,
-            'previous_status' => $previousStatus,
-            'new_status' => $newStatus,
-            'comment' => $comment,
-        ]);
-    }
 }
