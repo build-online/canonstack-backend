@@ -159,11 +159,13 @@ class RepositoryService
 
     /**
      * Search repositories by name across models and datasets.
+     * Only includes approved repositories.
      */
     public function searchRepositories(string $query, int $limit = 5): Collection
     {
         return Repository::with(['user:id,uuid,name,username', 'model:id,uuid,repository_id', 'dataset:id,uuid,repository_id'])
             ->where('name', 'LIKE', '%' . $query . '%')
+            ->where('status', 'ACCEPTED') // Only include approved repositories
             ->where(function ($q) {
                 $q->whereHas('model')
                   ->orWhereHas('dataset');
@@ -175,6 +177,7 @@ class RepositoryService
 
     /**
      * Get featured repositories ordered by creation date, with optional type filtering.
+     * Only includes approved repositories.
      */
     public function getFeaturedRepositories(?string $type = null, int $limit = 10): Collection
     {
@@ -186,7 +189,9 @@ class RepositoryService
             'tags:id,uuid,name',
             'approver:id,uuid,name,username,email,role',
             'files:id,repository_id,type,size'
-        ])->withCount(['downloads', 'likes', 'comments']);
+        ])
+        ->withCount(['downloads', 'likes', 'comments'])
+        ->where('status', 'ACCEPTED'); // Only include approved repositories
 
         if ($type === 'models') {
             $query->whereHas('model', function ($q) {
@@ -277,6 +282,7 @@ class RepositoryService
 
     /**
      * Get repositories by type with necessary relationships.
+     * Only includes approved repositories.
      */
     private function getRepositoriesByType(string $type): Collection
     {
@@ -291,6 +297,7 @@ class RepositoryService
                 'files:id,repository_id,type,size'
             ])
             ->withCount(['downloads', 'likes', 'comments'])
+            ->where('status', 'ACCEPTED') // Only include approved repositories
             ->whereHas($relationshipName)
             ->get();
 
