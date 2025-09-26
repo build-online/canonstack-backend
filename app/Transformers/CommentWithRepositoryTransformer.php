@@ -19,8 +19,8 @@ class CommentWithRepositoryTransformer extends TransformerAbstract
             'text' => $comment->text,
             'is_approver' => $comment->is_approver,
             'is_from_approval_process' => $comment->is_from_approval_process,
-            'created_at' => $comment->created_at->toISOString(),
-            'created_at_human' => $comment->created_at->diffForHumans(),
+            'created_at' => $comment->created_at ? $comment->created_at->toISOString() : null,
+            'created_at_human' => $comment->created_at ? $comment->created_at->diffForHumans() : null,
             'user' => [
                 'name' => $comment->user->name,
                 'username' => $comment->user->username,

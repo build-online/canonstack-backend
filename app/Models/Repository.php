@@ -113,4 +113,12 @@ class Repository extends Model
     {
         return $this->hasMany(Comment::class);
     }
+
+    /**
+     * Get all approval history for this repository.
+     */
+    public function approvalHistory()
+    {
+        return $this->hasMany(ApprovalHistory::class);
+    }
 }

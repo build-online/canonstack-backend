@@ -7,6 +7,7 @@ use App\Models\ModelRepository;
 use App\Models\Dataset;
 use App\Models\Comment;
 use App\Models\User;
+use App\Models\ApprovalHistory;
 use Illuminate\Support\Facades\DB;
 use Exception;
 
@@ -19,7 +20,21 @@ class ReviewService
     {
         return DB::transaction(function () use ($reviewData, $approver, $repository) {
             $this->validateApproverAuthority($approver, $repository);
+            
+            // Store previous status for history
+            $previousStatus = $repository->status;
+            
             $this->updateRepositoryStatus($repository, $reviewData['action'], $approver);
+            
+            // Create approval history record
+            $this->createApprovalHistory(
+                $repository,
+                $approver,
+                $reviewData['action'],
+                $previousStatus,
+                $repository->fresh()->status,
+                $reviewData['comment']
+            );
             
             if ($reviewData['comment']) {
                 $this->createApprovalComment($repository, $reviewData['comment'], $approver);
@@ -74,6 +89,27 @@ class ReviewService
             'text' => $commentText,
             'is_approver' => true, // Since this is from an approver
             'is_from_approval_process' => true,
+        ]);
+    }
+
+    /**
+     * Create an approval history record.
+     */
+    private function createApprovalHistory(
+        Repository $repository,
+        User $approver,
+        string $action,
+        string $previousStatus,
+        string $newStatus,
+        ?string $comment = null
+    ): ApprovalHistory {
+        return ApprovalHistory::create([
+            'repository_id' => $repository->id,
+            'approver_id' => $approver->id,
+            'action' => $action,
+            'previous_status' => $previousStatus,
+            'new_status' => $newStatus,
+            'comment' => $comment,
         ]);
     }
 }

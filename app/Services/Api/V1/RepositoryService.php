@@ -66,7 +66,7 @@ class RepositoryService
                 'human_size' => $file->human_size,
                 'mime_type' => $file->mime_type,
                 'parent_path' => $file->parent_path,
-                'created_at' => $file->created_at->toISOString(),
+                'created_at' => $file->created_at ? $file->created_at->toISOString() : null,
                 'is_downloadable' => $file->type === 'file' && !empty($file->file_ref),
                 'is_previewable' => $file->type === 'file' ? $this->fileSystemService->isPreviewableFile($file) : false,
                 'depth' => $currentDepth,
