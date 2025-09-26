@@ -70,9 +70,9 @@ class TrendingTransformer extends TransformerAbstract
                 'size_human' => $totalSizeHuman,
                 'engagement_score' => $item['engagement_score'],
                 'percentage_change' => $item['percentage_change'],
-                'created_at' => $repository->created_at->toISOString(),
-                'updated_at' => $repository->updated_at->toISOString(),
-                'updated_at_human' => $repository->updated_at->diffForHumans(),
+                'created_at' => $repository->created_at ? $repository->created_at->toISOString() : null,
+                'updated_at' => $repository->updated_at ? $repository->updated_at->toISOString() : null,
+                'updated_at_human' => $repository->updated_at ? $repository->updated_at->diffForHumans() : null,
                 'user' => [
                     'uuid' => $repository->user->uuid,
                     'name' => $repository->user->name,

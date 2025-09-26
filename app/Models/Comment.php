@@ -29,6 +29,8 @@ class Comment extends Model
     protected $casts = [
         'is_approver' => 'boolean',
         'is_from_approval_process' => 'boolean',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     /**

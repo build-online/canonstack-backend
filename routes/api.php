@@ -44,6 +44,8 @@ use App\Http\Controllers\Api\V1\Featured\GetFeaturedRepositoriesController;
 use App\Http\Controllers\Api\V1\Trending\GetTrendingRepositoriesController;
 use App\Http\Controllers\Api\V1\Models\ReviewModelController;
 use App\Http\Controllers\Api\V1\Datasets\ReviewDatasetController;
+use App\Http\Controllers\Api\V1\ApprovalHistory\GetApprovalHistoryController;
+use App\Http\Controllers\Api\V1\ApprovalHistory\GetApprovalHistoryStatsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -121,6 +123,11 @@ Route::group(['prefix' => 'v1'], function () {
             Route::get('featured', GetFeaturedRepositoriesController::class)->name('v1.repositories.featured');
             Route::get('search', SearchRepositoriesController::class)->name('v1.repositories.search');
             Route::get('trending', GetTrendingRepositoriesController::class)->name('v1.repositories.trending');
+        });
+        
+        Route::prefix('approval-history')->group(function () {
+            Route::get('/', GetApprovalHistoryController::class)->name('v1.approval-history.index');
+            Route::get('stats', GetApprovalHistoryStatsController::class)->name('v1.approval-history.stats');
         });
         
         Route::get('stats', GetStatsController::class)->name('v1.stats.general');

@@ -23,6 +23,11 @@ class CommentTransformer extends TransformerAbstract
             'uuid' => $comment->uuid,
             'text' => $comment->text,
             'is_approver' => $comment->is_approver,
+            'is_from_approval_process' => $comment->is_from_approval_process,
+            'created_at' => $comment->created_at ? $comment->created_at->toISOString() : null,
+            'updated_at' => $comment->updated_at ? $comment->updated_at->toISOString() : null,
+            'created_at_human' => $comment->created_at ? $comment->created_at->diffForHumans() : null,
+            'updated_at_human' => $comment->updated_at ? $comment->updated_at->diffForHumans() : null,
         ];
     }
 

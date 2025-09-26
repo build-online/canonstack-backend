@@ -41,9 +41,9 @@ class RepositoryTransformer extends TransformerAbstract
             'comments_count' => $repository->comments_count ?? $repository->comments()->count(),
             'size' => $totalSize,
             'size_human' => $totalSizeHuman,
-            'created_at' => $repository->created_at->toISOString(),
-            'updated_at' => $repository->updated_at->toISOString(),
-            'updated_at_human' => $repository->updated_at->diffForHumans(),
+            'created_at' => $repository->created_at ? $repository->created_at->toISOString() : null,
+            'updated_at' => $repository->updated_at ? $repository->updated_at->toISOString() : null,
+            'updated_at_human' => $repository->updated_at ? $repository->updated_at->diffForHumans() : null,
         ];
 
         if ($repository->relationLoaded('likes') && 
