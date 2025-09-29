@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api\V1\Embeddings;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\GenerateDatasetEmbeddings;
 use App\Models\Dataset;
+use App\Models\DatasetEmbedding;
 use App\Services\Api\V1\DatasetEmbeddingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -55,25 +57,39 @@ class PostDatasetEmbeddingController extends Controller
                 );
             }
 
-            // Generate embeddings
+            // Create embedding record and queue background job
             if ($validated['force_regenerate'] ?? false) {
-                $embedding = $this->embeddingService->regenerateEmbeddings($dataset, $validated);
-            } else {
-                $embedding = $this->embeddingService->generateEmbeddings($dataset, $validated);
+                // Delete existing embeddings first
+                if ($existingEmbedding) {
+                    $this->embeddingService->deleteEmbeddings($dataset);
+                }
             }
+
+            // Create new embedding record with PENDING status
+            $embedding = DatasetEmbedding::create([
+                'uuid' => \Illuminate\Support\Str::uuid(),
+                'dataset_id' => $dataset->id,
+                'qdrant_collection_name' => 'dataset_' . $dataset->uuid,
+                'embedding_model' => $validated['embedding_model'] ?? config('services.openai.embedding_model'),
+                'status' => 'PENDING',
+                'processing_stats' => [
+                    'chunk_size' => $validated['chunk_size'] ?? 1000,
+                    'chunk_overlap' => $validated['chunk_overlap'] ?? 200,
+                ]
+            ]);
+
+            // Queue the background job
+            GenerateDatasetEmbeddings::dispatch($dataset, $validated);
 
             return response()->sendResponse([
                 'embedding_id' => $embedding->uuid,
                 'dataset_id' => $dataset->uuid,
                 'status' => $embedding->status,
                 'collection_name' => $embedding->qdrant_collection_name,
-                'total_chunks' => $embedding->total_chunks,
-                'total_points' => $embedding->total_points,
                 'embedding_model' => $embedding->embedding_model,
-                'processing_started_at' => $embedding->processing_started_at,
-                'processing_completed_at' => $embedding->processing_completed_at,
-                'processing_stats' => $embedding->processing_stats
-            ], null, 'Dataset embeddings generated successfully.');
+                'processing_stats' => $embedding->processing_stats,
+                'message' => 'Embedding generation job has been queued. Check status using the GET endpoint.'
+            ], null, 'Dataset embedding generation queued successfully.');
 
         } catch (Exception $e) {
             return response()->sendError(

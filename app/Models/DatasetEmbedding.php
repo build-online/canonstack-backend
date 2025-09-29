@@ -56,7 +56,7 @@ class DatasetEmbedding extends Model
      */
     public function isCompleted(): bool
     {
-        return $this->status === 'completed';
+        return $this->status === 'COMPLETED';
     }
 
     /**
@@ -64,7 +64,7 @@ class DatasetEmbedding extends Model
      */
     public function isProcessing(): bool
     {
-        return $this->status === 'processing';
+        return $this->status === 'PROCESSING';
     }
 
     /**
@@ -72,7 +72,7 @@ class DatasetEmbedding extends Model
      */
     public function hasFailed(): bool
     {
-        return $this->status === 'failed';
+        return $this->status === 'FAILED';
     }
 
     /**
@@ -81,7 +81,7 @@ class DatasetEmbedding extends Model
     public function markAsProcessing(): void
     {
         $this->update([
-            'status' => 'processing',
+            'status' => 'PROCESSING',
             'processing_started_at' => now(),
             'error_message' => null,
         ]);
@@ -93,7 +93,7 @@ class DatasetEmbedding extends Model
     public function markAsCompleted(int $totalChunks, int $totalPoints, array $stats = []): void
     {
         $this->update([
-            'status' => 'completed',
+            'status' => 'COMPLETED',
             'total_chunks' => $totalChunks,
             'total_points' => $totalPoints,
             'processing_completed_at' => now(),
@@ -108,9 +108,74 @@ class DatasetEmbedding extends Model
     public function markAsFailed(string $errorMessage): void
     {
         $this->update([
-            'status' => 'failed',
+            'status' => 'FAILED',
             'error_message' => $errorMessage,
             'processing_completed_at' => now(),
         ]);
+    }
+
+    /**
+     * Check if embedding is pending.
+     */
+    public function isPending(): bool
+    {
+        return $this->status === 'PENDING';
+    }
+
+
+
+
+    /**
+     * Get processing progress as percentage.
+     */
+    public function getProgressPercentage(): ?float
+    {
+        if ($this->isPending()) {
+            return 0.0;
+        }
+
+        if ($this->isCompleted()) {
+            return 100.0;
+        }
+
+        if ($this->hasFailed()) {
+            return null; // No progress for failed jobs
+        }
+
+        if ($this->isProcessing()) {
+            // For processing jobs, we can estimate progress based on chunks processed
+            // This would need to be updated by the job itself for real progress tracking
+            return null; // TODO: Implement real progress tracking
+        }
+
+        return null;
+    }
+
+    /**
+     * Get human-readable status.
+     */
+    public function getStatusText(): string
+    {
+        return match($this->status) {
+            'PENDING' => 'Queued for processing',
+            'PROCESSING' => 'Currently processing',
+            'COMPLETED' => 'Completed successfully',
+            'FAILED' => 'Processing failed',
+            default => 'Unknown status'
+        };
+    }
+
+    /**
+     * Get estimated time remaining (placeholder for future implementation).
+     */
+    public function getEstimatedTimeRemaining(): ?string
+    {
+        // TODO: Implement based on average processing times and current progress
+        if ($this->isProcessing() && $this->processing_started_at) {
+            $elapsed = $this->processing_started_at->diffInMinutes(now());
+            return "Processing for {$elapsed} minutes";
+        }
+
+        return null;
     }
 }

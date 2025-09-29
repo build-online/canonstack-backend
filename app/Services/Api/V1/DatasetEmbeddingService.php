@@ -369,25 +369,26 @@ class DatasetEmbeddingService
             ];
         }
 
-        $response = [
+        return [
+            'embedding_id' => $embedding->uuid,
+            'dataset_id' => $dataset->uuid,
             'status' => $embedding->status,
+            'status_text' => $embedding->getStatusText(),
+            'collection_name' => $embedding->qdrant_collection_name,
+            'embedding_model' => $embedding->embedding_model,
             'total_chunks' => $embedding->total_chunks,
             'total_points' => $embedding->total_points,
-            'embedding_model' => $embedding->embedding_model,
-            'collection_name' => $embedding->qdrant_collection_name,
             'processing_started_at' => $embedding->processing_started_at,
             'processing_completed_at' => $embedding->processing_completed_at,
+            'processing_stats' => $embedding->processing_stats,
+            'error_message' => $embedding->error_message,
+            'progress_percentage' => $embedding->getProgressPercentage(),
+            'estimated_time_remaining' => $embedding->getEstimatedTimeRemaining(),
+            'is_pending' => $embedding->isPending(),
+            'is_processing' => $embedding->isProcessing(),
+            'is_completed' => $embedding->isCompleted(),
+            'is_failed' => $embedding->hasFailed(),
         ];
-
-        if ($embedding->error_message) {
-            $response['error_message'] = $embedding->error_message;
-        }
-
-        if ($embedding->processing_stats) {
-            $response['processing_stats'] = $embedding->processing_stats;
-        }
-
-        return $response;
     }
 
     /**

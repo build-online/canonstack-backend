@@ -5,6 +5,7 @@ namespace App\Services\Api\V1;
 use Exception;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class EmbeddingService
 {
@@ -261,12 +262,13 @@ class EmbeddingService
             
             foreach ($textChunks as $chunkIndex => $chunkText) {
                 $chunks[] = [
-                    'id' => uniqid("chunk_{$index}_{$chunkIndex}_"),
+                    'id' => Str::uuid()->toString(),
                     'text' => $chunkText,
                     'metadata' => array_merge($row['metadata'] ?? [], [
                         'original_index' => $index,
                         'chunk_index' => $chunkIndex,
-                        'total_chunks' => count($textChunks)
+                        'total_chunks' => count($textChunks),
+                        'chunk_identifier' => "chunk_{$index}_{$chunkIndex}"
                     ])
                 ];
             }
