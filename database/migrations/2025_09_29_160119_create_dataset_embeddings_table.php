@@ -21,7 +21,7 @@ return new class extends Migration
             $table->string('embedding_model')->default('text-embedding-3-small');
             $table->integer('chunk_size')->default(1000);
             $table->integer('chunk_overlap')->default(200);
-            $table->enum('status', ['pending', 'processing', 'completed', 'failed'])->default('pending');
+            $table->enum('status', ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'])->default('PENDING');
             $table->text('error_message')->nullable();
             $table->json('processing_stats')->nullable(); // Store stats like processing time, file counts, etc.
             $table->timestamp('processing_started_at')->nullable();

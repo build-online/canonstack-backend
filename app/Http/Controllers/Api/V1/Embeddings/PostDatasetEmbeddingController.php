@@ -72,6 +72,8 @@ class PostDatasetEmbeddingController extends Controller
                 'qdrant_collection_name' => 'dataset_' . $dataset->uuid,
                 'embedding_model' => $validated['embedding_model'] ?? config('services.openai.embedding_model'),
                 'status' => 'PENDING',
+                'chunk_size' => $validated['chunk_size'] ?? 1000,
+                'chunk_overlap' => $validated['chunk_overlap'] ?? 200,
                 'processing_stats' => [
                     'chunk_size' => $validated['chunk_size'] ?? 1000,
                     'chunk_overlap' => $validated['chunk_overlap'] ?? 200,

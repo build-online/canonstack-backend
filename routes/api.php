@@ -50,6 +50,8 @@ use App\Http\Controllers\Api\V1\Embeddings\PostDatasetEmbeddingController;
 use App\Http\Controllers\Api\V1\Embeddings\PostDatasetSearchController;
 use App\Http\Controllers\Api\V1\Embeddings\DeleteDatasetEmbeddingController;
 use App\Http\Controllers\Api\V1\Embeddings\GetDatasetEmbeddingController;
+use App\Http\Controllers\Api\V1\AI\PostRAGQueryController;
+use App\Http\Controllers\Api\V1\Debug\SearchDebugController;
 
 /*
 |--------------------------------------------------------------------------
@@ -139,6 +141,14 @@ Route::group(['prefix' => 'v1'], function () {
             Route::get('datasets/{uuid}', GetDatasetEmbeddingController::class)->name('v1.embeddings.datasets.show');
             Route::post('datasets/{uuid}/search', PostDatasetSearchController::class)->name('v1.embeddings.datasets.search');
             Route::delete('datasets/{uuid}', DeleteDatasetEmbeddingController::class)->name('v1.embeddings.datasets.destroy');
+        });
+
+        Route::prefix('ai')->group(function () {
+            Route::post('datasets/{uuid}/query', PostRAGQueryController::class)->name('v1.ai.datasets.query');
+        });
+
+        Route::prefix('debug')->group(function () {
+            Route::post('datasets/{uuid}/search', SearchDebugController::class)->name('v1.debug.datasets.search');
         });
         
         Route::get('stats', GetStatsController::class)->name('v1.stats.general');
