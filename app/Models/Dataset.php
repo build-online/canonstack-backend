@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use App\Models\Traits\HasUuid;
 
 class Dataset extends Model
@@ -33,5 +34,13 @@ class Dataset extends Model
     public function repository(): BelongsTo
     {
         return $this->belongsTo(Repository::class);
+    }
+
+    /**
+     * Get the embedding for this dataset.
+     */
+    public function embedding(): HasOne
+    {
+        return $this->hasOne(DatasetEmbedding::class);
     }
 }

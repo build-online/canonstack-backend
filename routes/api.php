@@ -46,6 +46,10 @@ use App\Http\Controllers\Api\V1\Models\ReviewModelController;
 use App\Http\Controllers\Api\V1\Datasets\ReviewDatasetController;
 use App\Http\Controllers\Api\V1\ApprovalHistory\GetApprovalHistoryController;
 use App\Http\Controllers\Api\V1\ApprovalHistory\GetApprovalHistoryStatsController;
+use App\Http\Controllers\Api\V1\Embeddings\PostDatasetEmbeddingController;
+use App\Http\Controllers\Api\V1\Embeddings\PostDatasetSearchController;
+use App\Http\Controllers\Api\V1\Embeddings\DeleteDatasetEmbeddingController;
+use App\Http\Controllers\Api\V1\Embeddings\GetDatasetEmbeddingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -128,6 +132,13 @@ Route::group(['prefix' => 'v1'], function () {
         Route::prefix('approval-history')->group(function () {
             Route::get('/', GetApprovalHistoryController::class)->name('v1.approval-history.index');
             Route::get('stats', GetApprovalHistoryStatsController::class)->name('v1.approval-history.stats');
+        });
+
+        Route::prefix('embeddings')->group(function () {
+            Route::post('datasets/{uuid}', PostDatasetEmbeddingController::class)->name('v1.embeddings.datasets.store');
+            Route::get('datasets/{uuid}', GetDatasetEmbeddingController::class)->name('v1.embeddings.datasets.show');
+            Route::post('datasets/{uuid}/search', PostDatasetSearchController::class)->name('v1.embeddings.datasets.search');
+            Route::delete('datasets/{uuid}', DeleteDatasetEmbeddingController::class)->name('v1.embeddings.datasets.destroy');
         });
         
         Route::get('stats', GetStatsController::class)->name('v1.stats.general');
