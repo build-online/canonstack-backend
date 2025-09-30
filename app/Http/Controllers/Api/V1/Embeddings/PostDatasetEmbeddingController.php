@@ -83,8 +83,8 @@ class PostDatasetEmbeddingController extends Controller
             GenerateDatasetEmbeddings::dispatch($dataset, $validated);
 
             return response()->sendResponse([
-                'embedding_id' => $embedding->uuid,
-                'dataset_id' => $dataset->uuid,
+                'embedding_uuid' => $embedding->uuid,
+                'dataset_uuid' => $dataset->uuid,
                 'status' => $embedding->status,
                 'collection_name' => $embedding->qdrant_collection_name,
                 'embedding_model' => $embedding->embedding_model,
