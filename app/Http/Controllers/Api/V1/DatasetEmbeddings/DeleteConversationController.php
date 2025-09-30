@@ -8,6 +8,8 @@ use App\Services\Api\V1\ConversationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Exception;
 
 class DeleteConversationController extends Controller
 {
@@ -39,42 +41,31 @@ class DeleteConversationController extends Controller
             $cleared = $this->conversationService->clearConversation($user, $datasetEmbedding);
 
             if (!$cleared) {
-                return response()->json([
-                    'success' => true,
-                    'data' => [
-                        'conversation_existed' => false,
+                return response()->sendResponse(
+                    ['conversation_existed' => false,
                         'dataset_embedding' => [
                             'uuid' => $datasetEmbedding->uuid,
                             'status' => $datasetEmbedding->status,
                             'embedding_model' => $datasetEmbedding->embedding_model,
                         ],
                     ],
-                    'message' => 'No conversation found to clear.'
-                ]);
+                    null,
+                    'No conversation found to clear.'
+                );
             }
 
-            return response()->json([
-                'success' => true,
-                'data' => [
+            return response()->sendResponse(
+                [
                     'conversation_existed' => true,
                     'cleared' => true,
-                    'dataset_embedding' => [
-                        'uuid' => $datasetEmbedding->uuid,
-                        'status' => $datasetEmbedding->status,
-                        'embedding_model' => $datasetEmbedding->embedding_model,
-                    ],
                 ],
-                'message' => 'Conversation cleared successfully.'
-            ]);
+                null,
+                'Conversation cleared successfully.'
+            );
 
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Dataset embedding not found.',
-                'errors' => []
-            ], 404);
-
-        } catch (\Exception $e) {
+        } catch (ModelNotFoundException $e) {
+            return response()->sendError('Dataset embedding not found.', 404);
+        } catch (Exception $e) {
             Log::error("Failed to clear conversation", [
                 'dataset_embedding_uuid' => $uuid,
                 'user_id' => $request->user()?->id,
@@ -82,11 +73,7 @@ class DeleteConversationController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to clear conversation: ' . $e->getMessage(),
-                'errors' => []
-            ], 500);
+            return response()->sendError('Failed to clear conversation: ' . $e->getMessage(), 500);
         }
     }
 }

@@ -8,6 +8,8 @@ use App\Services\Api\V1\ConversationService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Exception;
 
 class GetConversationController extends Controller
 {
@@ -39,9 +41,8 @@ class GetConversationController extends Controller
             $conversationHistory = $this->conversationService->getConversationHistory($user, $datasetEmbedding);
 
             if (!$conversationHistory) {
-                return response()->json([
-                    'success' => true,
-                    'data' => [
+                return response()->sendResponse(
+                    [
                         'exists' => false,
                         'conversation_id' => null,
                         'messages' => [],
@@ -54,13 +55,13 @@ class GetConversationController extends Controller
                             'embedding_model' => $datasetEmbedding->embedding_model,
                         ],
                     ],
-                    'message' => 'No conversation found for this dataset embedding.'
-                ]);
+                    null,
+                    'No conversation found for this dataset embedding.'
+                );
             }
 
-            return response()->json([
-                'success' => true,
-                'data' => array_merge($conversationHistory, [
+            return response()->sendResponse(
+                array_merge($conversationHistory, [
                     'exists' => true,
                     'dataset_embedding' => [
                         'uuid' => $datasetEmbedding->uuid,
@@ -68,17 +69,14 @@ class GetConversationController extends Controller
                         'embedding_model' => $datasetEmbedding->embedding_model,
                     ],
                 ]),
-                'message' => 'Conversation history retrieved successfully.'
-            ]);
+                null,
+                'Conversation history retrieved successfully.'
+            );
 
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Dataset embedding not found.',
-                'errors' => []
-            ], 404);
+        } catch (ModelNotFoundException $e) {
+            return response()->sendError('Dataset embedding not found.', 404);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error("Failed to get conversation history", [
                 'dataset_embedding_uuid' => $uuid,
                 'user_id' => $request->user()?->id,
@@ -86,11 +84,7 @@ class GetConversationController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve conversation history: ' . $e->getMessage(),
-                'errors' => []
-            ], 500);
+            return response()->sendError('Failed to retrieve conversation history: ' . $e->getMessage(), 500);
         }
     }
 }

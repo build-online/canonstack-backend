@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Exception;
 
 class PostConversationMessageController extends Controller
 {
@@ -61,11 +62,7 @@ class PostConversationMessageController extends Controller
             ]);
 
             if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 400);
+                return response()->sendError('Validation failed', 400, $validator->errors());
             }
 
             $validated = $validator->validated();
@@ -110,9 +107,8 @@ class PostConversationMessageController extends Controller
                 $options
             );
 
-            return response()->json([
-                'success' => true,
-                'data' => array_merge($result, [
+            return response()->sendResponse(
+                array_merge($result, [
                     'dataset_embedding' => [
                         'uuid' => $datasetEmbedding->uuid,
                         'status' => $datasetEmbedding->status,
@@ -121,17 +117,14 @@ class PostConversationMessageController extends Controller
                     'user_message' => $validated['message'],
                     'ai_provider' => $validated['ai_provider'] ?? 'openai',
                 ]),
-                'message' => 'Conversation message processed successfully.'
-            ]);
+                null,
+                'Conversation message processed successfully.'
+            );
 
         } catch (ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Dataset embedding not found.',
-                'errors' => []
-            ], 404);
+            return response()->sendError('Dataset embedding not found.', 404);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error("Conversation message failed", [
                 'dataset_embedding_uuid' => $uuid,
                 'user_id' => $request->user()?->id,
@@ -141,26 +134,14 @@ class PostConversationMessageController extends Controller
 
             // Check for specific error types
             if (str_contains($e->getMessage(), 'embeddings are not available')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Dataset embeddings are not available or not completed. Please generate embeddings first.',
-                    'errors' => []
-                ], 400);
+                return response()->sendError('Dataset embeddings are not available or not completed. Please generate embeddings first.', 400);
             }
 
             if (str_contains($e->getMessage(), 'Qdrant')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'The answer was not generated due to a search service error: ' . $e->getMessage(),
-                    'errors' => []
-                ], 503);
+                return response()->sendError('The answer was not generated due to a search service error: ' . $e->getMessage(), 503);
             }
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to process conversation message: ' . $e->getMessage(),
-                'errors' => []
-            ], 500);
+            return response()->sendError('Failed to process conversation message: ' . $e->getMessage(), 500);
         }
     }
 }

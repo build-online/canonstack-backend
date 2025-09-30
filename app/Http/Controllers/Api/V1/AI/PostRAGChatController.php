@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Exception;
 
 class PostRAGChatController extends Controller
 {
@@ -57,11 +58,7 @@ class PostRAGChatController extends Controller
             ]);
 
             if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 400);
+                return response()->sendError('Validation failed', 400, $validator->errors());
             }
 
             $validated = $validator->validated();
@@ -120,35 +117,27 @@ class PostRAGChatController extends Controller
                 $options
             );
 
-            return response()->json([
-                'success' => true,
-                'data' => array_merge($result, [
+            return response()->sendResponse(
+                array_merge($result, [
                     'original_message' => $message,
                     'parsed_query' => $query,
                     'message_type' => $parsedMessage['has_custom_prompt'] ? 'structured' : 'simple'
                 ]),
-                'message' => 'RAG chat query completed successfully.'
-            ]);
+                null,
+                'RAG chat query completed successfully.'
+            );
 
         } catch (ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Dataset not found.',
-                'errors' => []
-            ], 404);
+            return response()->sendError('Dataset not found.', 404);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error("RAG chat query failed", [
                 'dataset_uuid' => $uuid,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to process RAG chat query: ' . $e->getMessage(),
-                'errors' => []
-            ], 500);
+            return response()->sendError('Failed to process RAG chat query: ' . $e->getMessage(), 500);
         }
     }
 
