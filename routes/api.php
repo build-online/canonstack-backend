@@ -52,6 +52,9 @@ use App\Http\Controllers\Api\V1\Embeddings\DeleteDatasetEmbeddingController;
 use App\Http\Controllers\Api\V1\Embeddings\GetDatasetEmbeddingController;
 use App\Http\Controllers\Api\V1\AI\PostRAGQueryController;
 use App\Http\Controllers\Api\V1\AI\PostRAGChatController;
+use App\Http\Controllers\Api\V1\DatasetEmbeddings\PostConversationMessageController;
+use App\Http\Controllers\Api\V1\DatasetEmbeddings\GetConversationController;
+use App\Http\Controllers\Api\V1\DatasetEmbeddings\DeleteConversationController;
 use App\Http\Controllers\Api\V1\Debug\SearchDebugController;
 
 /*
@@ -147,6 +150,12 @@ Route::group(['prefix' => 'v1'], function () {
         Route::prefix('ai')->group(function () {
             Route::post('datasets/{uuid}/query', PostRAGQueryController::class)->name('v1.ai.datasets.query');
             Route::post('datasets/{uuid}/chat', PostRAGChatController::class)->name('v1.ai.datasets.chat');
+        });
+
+        Route::prefix('dataset-embeddings')->group(function () {
+            Route::get('{uuid}/conversation', GetConversationController::class)->name('v1.dataset-embeddings.conversation.show');
+            Route::post('{uuid}/conversation/messages', PostConversationMessageController::class)->name('v1.dataset-embeddings.conversation.messages.store');
+            Route::delete('{uuid}/conversation', DeleteConversationController::class)->name('v1.dataset-embeddings.conversation.destroy');
         });
 
         Route::prefix('debug')->group(function () {
