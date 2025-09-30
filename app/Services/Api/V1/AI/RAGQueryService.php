@@ -71,12 +71,29 @@ class RAGQueryService
                 return $result['score'] >= $threshold;
             });
 
-            if (empty($filteredResults)) {
+            // Check if the query is actually relevant to the dataset content
+            $relevanceCheck = $this->checkQueryRelevance($query, $filteredResults, $dataset, $options);
+            
+            Log::info("Relevance check completed", [
+                'dataset_id' => $dataset->id,
+                'query' => $query,
+                'total_search_results' => count($searchResults),
+                'filtered_results' => count($filteredResults),
+                'threshold_used' => $threshold,
+                'relevance_check' => $relevanceCheck,
+                'top_scores' => array_slice(array_map(fn($r) => round($r['score'] ?? 0, 4), $searchResults), 0, 5)
+            ]);
+            
+            if (empty($filteredResults) || !$relevanceCheck['is_relevant']) {
+                $reason = empty($filteredResults) ? 'No results above similarity threshold' : $relevanceCheck['reason'];
+                
                 Log::warning("No relevant context found for query", [
                     'dataset_id' => $dataset->id,
                     'query' => $query,
                     'threshold' => $threshold,
                     'total_results' => count($searchResults),
+                    'filtered_results' => count($filteredResults),
+                    'relevance_check' => $relevanceCheck,
                     'max_score' => count($searchResults) > 0 ? max(array_map(fn($r) => $r['score'] ?? 0, $searchResults)) : 0,
                     'all_scores' => array_map(fn($r) => round($r['score'] ?? 0, 4), $searchResults)
                 ]);
@@ -86,15 +103,16 @@ class RAGQueryService
                     'dataset_id' => $dataset->uuid,
                     'ai_provider' => $aiProvider,
                     'context_found' => false,
-                    'relevant_chunks' => 0,
+                    'relevant_chunks' => count($filteredResults),
                     'ai_response' => null,
-                    'message' => 'No relevant context found in the dataset for this query.',
+                    'message' => $relevanceCheck['message'] ?? 'No relevant context found in the dataset for this query.',
                     'debug_info' => [
                         'total_results_from_qdrant' => count($searchResults),
                         'similarity_threshold_used' => $threshold,
+                        'relevance_check' => $relevanceCheck,
                         'max_score_found' => count($searchResults) > 0 ? max(array_map(fn($r) => $r['score'] ?? 0, $searchResults)) : 0,
                         'all_scores' => array_map(fn($r) => round($r['score'] ?? 0, 4), $searchResults),
-                        'suggestion' => count($searchResults) > 0 ? 'Try lowering the search_threshold parameter' : 'Check if embeddings were generated successfully'
+                        'suggestion' => count($searchResults) > 0 ? 'Try lowering the search_threshold parameter or check if your query is relevant to the dataset content' : 'Check if embeddings were generated successfully'
                     ]
                 ];
             }
@@ -330,19 +348,33 @@ class RAGQueryService
     }
 
     /**
-     * Build default prompt template.
+     * Build default prompt template with strict guardrails.
      */
     private function buildDefaultPrompt(string $query, string $context, ?string $instructions, ?string $format): string
     {
-        $prompt = "### Instruction:\n";
-        $prompt .= $instructions ?? "Answer the user's question based on the provided context from the dataset. Be accurate and cite relevant information when possible.";
-        $prompt .= "\n\n### User Question:\n{$query}\n\n";
-        $prompt .= "### Relevant Context:\n{$context}\n\n";
-        $prompt .= "### Response:\n";
+        $baseInstructions = $instructions ?? "Answer the user's question based ONLY on the provided context from the dataset. Be accurate and cite relevant information when possible.";
+        
+        $prompt = "### CRITICAL INSTRUCTIONS:\n";
+        $prompt .= "You are a RAG (Retrieval-Augmented Generation) assistant. You must follow these rules:\n\n";
+        $prompt .= "1. Answer questions confidently using the provided context from the dataset\n";
+        $prompt .= "2. Make reasonable connections and interpretations based on the context provided\n";
+        $prompt .= "3. If the context contains relevant information, provide a comprehensive answer\n";
+        $prompt .= "4. Look for implicit connections and themes in the biblical text\n";
+        $prompt .= "5. Only decline to answer if the context is completely unrelated to the question\n";
+        $prompt .= "6. When biblical passages relate to the question, explain those connections clearly\n\n";
+        
+        $prompt .= "### Additional Instructions:\n";
+        $prompt .= $baseInstructions . "\n\n";
+        
+        $prompt .= "### User Question:\n{$query}\n\n";
+        $prompt .= "### Dataset Context:\n{$context}\n\n";
         
         if ($format) {
-            $prompt .= "Please format your response as follows:\n{$format}\n\n";
+            $prompt .= "### Response Format:\n{$format}\n\n";
         }
+        
+        $prompt .= "### Your Response:\n";
+        $prompt .= "Analyze the context carefully. If you find relevant biblical passages, verses, or themes that relate to the question, use them to provide a helpful answer. Look for connections between different passages and explain their significance.\n\n";
         
         return $prompt;
     }
@@ -352,17 +384,24 @@ class RAGQueryService
      */
     private function buildQAPrompt(string $query, string $context, ?string $instructions, ?string $format): string
     {
+        $baseInstructions = $instructions ?? "Answer the question directly and concisely based ONLY on the provided context.";
+        
         return <<<PROMPT
-### Instruction:
-{$instructions} Answer the question directly and concisely based on the provided context.
+### CRITICAL INSTRUCTIONS:
+Answer the question confidently using the provided context. Look for relevant biblical passages, themes, and connections. Make reasonable interpretations and explain the significance of the passages. Only decline to answer if the context is completely unrelated to the question.
+
+### Additional Instructions:
+{$baseInstructions}
 
 ### Question:
 {$query}
 
-### Context:
+### Dataset Context:
 {$context}
 
 ### Answer:
+Based on the biblical context provided, here is my analysis:
+
 PROMPT;
     }
 
@@ -442,5 +481,134 @@ PROMPT;
                 'chunk_id' => $result['id'] ?? null
             ];
         }, $searchResults, array_keys($searchResults));
+    }
+
+    /**
+     * Check if the query is actually relevant to the dataset content.
+     * This helps prevent the AI from answering questions outside the dataset scope.
+     */
+    private function checkQueryRelevance(string $query, array $searchResults, Dataset $dataset, array $options = []): array
+    {
+        // If no search results, definitely not relevant
+        if (empty($searchResults)) {
+            return [
+                'is_relevant' => false,
+                'reason' => 'No search results found',
+                'message' => 'No relevant content found in the dataset for this query.',
+                'confidence' => 0.0
+            ];
+        }
+
+        // Calculate relevance metrics
+        $scores = array_map(fn($r) => $r['score'] ?? 0, $searchResults);
+        $maxScore = max($scores);
+        $avgScore = array_sum($scores) / count($scores);
+        $highScoreCount = count(array_filter($scores, fn($s) => $s >= 0.6));
+        
+        // Define relevance thresholds (configurable via options)
+        $minMaxScore = $options['relevance_min_max_score'] ?? 0.3; // Lowered to be less aggressive
+        $minAvgScore = $options['relevance_min_avg_score'] ?? 0.2; // Lowered to be less aggressive  
+        $minHighScoreCount = $options['relevance_min_high_score_count'] ?? 0; // Allow queries without high-scoring chunks
+        
+        // Check for modern technology keywords that are unlikely to be in historical datasets
+        $modernTechKeywords = [
+            'cryptocurrency', 'blockchain', 'bitcoin', 'ethereum', 'crypto',
+            'quantum computing', 'quantum algorithm', 'quantum cryptography',
+            'artificial intelligence', 'machine learning', 'deep learning', 'AI', 'ML',
+            'internet', 'website', 'email', 'smartphone', 'computer', 'software',
+            'social media', 'facebook', 'twitter', 'instagram', 'youtube',
+            'cloud computing', 'aws', 'azure', 'google cloud',
+            'virtual reality', 'augmented reality', 'VR', 'AR',
+            'robotics', 'automation', 'IoT', 'internet of things',
+            'cybersecurity', 'hacking', 'malware', 'virus',
+            'streaming', 'netflix', 'spotify', 'uber', 'airbnb'
+        ];
+        
+        $queryLower = strtolower($query);
+        $containsModernTech = false;
+        foreach ($modernTechKeywords as $keyword) {
+            if (str_contains($queryLower, strtolower($keyword))) {
+                $containsModernTech = true;
+                break;
+            }
+        }
+        
+        // Determine dataset type for context-specific checks
+        $datasetName = strtolower($dataset->title ?? '');
+        $isReligiousDataset = str_contains($datasetName, 'bible') || 
+                             str_contains($datasetName, 'biblical') || 
+                             str_contains($datasetName, 'christian') || 
+                             str_contains($datasetName, 'religious') ||
+                             str_contains($datasetName, 'cross-reference');
+        
+        // Apply stricter checks for historical/religious datasets with modern tech queries
+        if ($isReligiousDataset && $containsModernTech) {
+            return [
+                'is_relevant' => false,
+                'reason' => 'Modern technology query on historical/religious dataset',
+                'message' => 'This query appears to be about modern technology concepts that would not be found in this historical/religious dataset.',
+                'confidence' => 0.0,
+                'detected_modern_tech' => true,
+                'dataset_type' => 'historical/religious'
+            ];
+        }
+        
+        // For religious datasets, be more lenient with biblical references
+        if ($isReligiousDataset) {
+            $queryLower = strtolower($query);
+            $biblicalPatterns = [
+                '/\b\d*\s*[a-z]+\s+\d+:\d+/', // "Romans 3:23", "1 John 4:16", etc.
+                '/\b(genesis|exodus|leviticus|numbers|deuteronomy|joshua|judges|ruth|samuel|kings|chronicles|ezra|nehemiah|esther|job|psalm|proverbs|ecclesiastes|song|isaiah|jeremiah|lamentations|ezekiel|daniel|hosea|joel|amos|obadiah|jonah|micah|nahum|habakkuk|zephaniah|haggai|zechariah|malachi|matthew|mark|luke|john|acts|romans|corinthians|galatians|ephesians|philippians|colossians|thessalonians|timothy|titus|philemon|hebrews|james|peter|jude|revelation)\b/',
+                '/\b(jesus|christ|god|lord|holy spirit|bible|scripture|sin|salvation|grace|faith|love|hope|prayer|worship)\b/'
+            ];
+            
+            foreach ($biblicalPatterns as $pattern) {
+                if (preg_match($pattern, $queryLower)) {
+                    // Lower thresholds for biblical queries
+                    $minMaxScore = 0.2;
+                    $minAvgScore = 0.15;
+                    $minHighScoreCount = 0;
+                    break;
+                }
+            }
+        }
+        
+        // Check relevance based on similarity scores
+        $isRelevant = ($maxScore >= $minMaxScore) && 
+                     ($avgScore >= $minAvgScore) && 
+                     ($highScoreCount >= $minHighScoreCount);
+        
+        if (!$isRelevant) {
+            $reason = [];
+            if ($maxScore < $minMaxScore) $reason[] = "max similarity score too low ({$maxScore} < {$minMaxScore})";
+            if ($avgScore < $minAvgScore) $reason[] = "average similarity score too low ({$avgScore} < {$minAvgScore})";
+            if ($highScoreCount < $minHighScoreCount) $reason[] = "insufficient high-relevance chunks ({$highScoreCount} < {$minHighScoreCount})";
+            
+            return [
+                'is_relevant' => false,
+                'reason' => 'Low relevance scores: ' . implode(', ', $reason),
+                'message' => 'The query does not appear to be sufficiently related to the content in this dataset.',
+                'confidence' => $maxScore,
+                'metrics' => [
+                    'max_score' => $maxScore,
+                    'avg_score' => $avgScore,
+                    'high_score_count' => $highScoreCount,
+                    'total_results' => count($searchResults)
+                ]
+            ];
+        }
+        
+        return [
+            'is_relevant' => true,
+            'reason' => 'Query appears relevant to dataset content',
+            'message' => null,
+            'confidence' => $maxScore,
+            'metrics' => [
+                'max_score' => $maxScore,
+                'avg_score' => $avgScore,
+                'high_score_count' => $highScoreCount,
+                'total_results' => count($searchResults)
+            ]
+        ];
     }
 }
