@@ -51,6 +51,7 @@ use App\Http\Controllers\Api\V1\Embeddings\PostDatasetSearchController;
 use App\Http\Controllers\Api\V1\Embeddings\DeleteDatasetEmbeddingController;
 use App\Http\Controllers\Api\V1\Embeddings\GetDatasetEmbeddingController;
 use App\Http\Controllers\Api\V1\AI\PostRAGQueryController;
+use App\Http\Controllers\Api\V1\AI\PostRAGChatController;
 use App\Http\Controllers\Api\V1\Debug\SearchDebugController;
 
 /*
@@ -145,6 +146,7 @@ Route::group(['prefix' => 'v1'], function () {
 
         Route::prefix('ai')->group(function () {
             Route::post('datasets/{uuid}/query', PostRAGQueryController::class)->name('v1.ai.datasets.query');
+            Route::post('datasets/{uuid}/chat', PostRAGChatController::class)->name('v1.ai.datasets.chat');
         });
 
         Route::prefix('debug')->group(function () {
