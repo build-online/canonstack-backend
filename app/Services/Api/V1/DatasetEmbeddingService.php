@@ -53,39 +53,68 @@ class DatasetEmbeddingService
         try {
             $embedding->markAsProcessing();
 
-            // Extract text from dataset files
-            $textData = $this->extractTextFromDataset($dataset);
+            // Check if dataset contains pre-prepared JSONL files
+            $jsonlFiles = $this->detectJsonlFiles($dataset);
             
-            if (empty($textData)) {
-                throw new Exception('No extractable text found in dataset');
+            if (!empty($jsonlFiles)) {
+                Log::info("Detected pre-prepared JSONL files, skipping embedding generation", [
+                    'dataset_id' => $dataset->id,
+                    'jsonl_files' => array_map(fn($f) => $f->name, $jsonlFiles)
+                ]);
+                
+                // Create Qdrant collection
+                $this->ensureQdrantCollection($embedding->qdrant_collection_name);
+                
+                // Process JSONL files directly
+                $totalPoints = $this->processJsonlFilesToQdrant($jsonlFiles, $embedding->qdrant_collection_name);
+                
+                // Mark as completed
+                $processingStats = [
+                    'total_files_processed' => count($jsonlFiles),
+                    'processing_time_seconds' => $embedding->processing_started_at->diffInSeconds(now()),
+                    'embedding_model' => $embeddingModel,
+                    'processing_type' => 'pre_prepared_jsonl',
+                    'jsonl_files' => array_map(fn($f) => $f->name, $jsonlFiles)
+                ];
+
+                $embedding->markAsCompleted($totalPoints, $totalPoints, $processingStats);
+                
+            } else {
+                // Standard processing for non-JSONL datasets
+                // Extract text from dataset files
+                $textData = $this->extractTextFromDataset($dataset);
+                
+                if (empty($textData)) {
+                    throw new Exception('No extractable text found in dataset');
+                }
+
+                // Prepare chunks
+                $chunks = $this->embeddingService->prepareChunks($textData, $chunkSize, $chunkOverlap);
+                
+                if (empty($chunks)) {
+                    throw new Exception('No chunks could be prepared from dataset');
+                }
+
+                // Create Qdrant collection
+                $this->ensureQdrantCollection($embedding->qdrant_collection_name);
+
+                // Generate embeddings and store in Qdrant
+                $totalPoints = $this->processChunksToQdrant($chunks, $embedding->qdrant_collection_name);
+
+                // Mark as completed
+                $processingStats = [
+                    'total_files_processed' => count($textData),
+                    'processing_time_seconds' => $embedding->processing_started_at->diffInSeconds(now()),
+                    'embedding_model' => $embeddingModel,
+                    'processing_type' => 'standard_embedding_generation',
+                    'average_chunk_size' => round(array_sum(array_map('strlen', array_column($chunks, 'text'))) / count($chunks))
+                ];
+
+                $embedding->markAsCompleted(count($chunks), $totalPoints, $processingStats);
             }
-
-            // Prepare chunks
-            $chunks = $this->embeddingService->prepareChunks($textData, $chunkSize, $chunkOverlap);
-            
-            if (empty($chunks)) {
-                throw new Exception('No chunks could be prepared from dataset');
-            }
-
-            // Create Qdrant collection
-            $this->ensureQdrantCollection($embedding->qdrant_collection_name);
-
-            // Generate embeddings and store in Qdrant
-            $totalPoints = $this->processChunksToQdrant($chunks, $embedding->qdrant_collection_name);
-
-            // Mark as completed
-            $processingStats = [
-                'total_files_processed' => count($textData),
-                'processing_time_seconds' => $embedding->processing_started_at->diffInSeconds(now()),
-                'embedding_model' => $embeddingModel,
-                'average_chunk_size' => round(array_sum(array_map('strlen', array_column($chunks, 'text'))) / count($chunks))
-            ];
-
-            $embedding->markAsCompleted(count($chunks), $totalPoints, $processingStats);
 
             Log::info("Embedding generation completed", [
                 'dataset_id' => $dataset->id,
-                'total_chunks' => count($chunks),
                 'total_points' => $totalPoints,
                 'stats' => $processingStats
             ]);
@@ -370,8 +399,8 @@ class DatasetEmbeddingService
         }
 
         return [
-            'embedding_id' => $embedding->uuid,
-            'dataset_id' => $dataset->uuid,
+            'embedding_uuid' => $embedding->uuid,
+            'dataset_uuid' => $dataset->uuid,
             'status' => $embedding->status,
             'status_text' => $embedding->getStatusText(),
             'collection_name' => $embedding->qdrant_collection_name,
@@ -421,5 +450,209 @@ class DatasetEmbeddingService
         ];
 
         return $stats;
+    }
+
+    /**
+     * Detect JSONL files in the dataset that contain pre-prepared embeddings.
+     */
+    private function detectJsonlFiles(Dataset $dataset): array
+    {
+        $repository = $dataset->repository;
+        $files = $repository->files()->where('type', 'file')->get();
+        
+        $jsonlFiles = [];
+        
+        foreach ($files as $file) {
+            $extension = strtolower(pathinfo($file->name, PATHINFO_EXTENSION));
+            
+            if (in_array($extension, ['jsonl', 'ndjson'])) {
+                // Verify it's a valid embedding JSONL by checking the first line
+                if ($this->isValidEmbeddingJsonl($file)) {
+                    $jsonlFiles[] = $file;
+                }
+            }
+        }
+        
+        return $jsonlFiles;
+    }
+
+    /**
+     * Check if a JSONL file contains valid embedding data.
+     */
+    private function isValidEmbeddingJsonl(RepositoryFile $file): bool
+    {
+        $tempPath = null;
+        
+        try {
+            // Download file temporarily to check format
+            $tempPath = $this->downloadFileTemporarily($file);
+            
+            // Read first line to validate format
+            $handle = fopen($tempPath, 'r');
+            if (!$handle) {
+                return false;
+            }
+            
+            $firstLine = fgets($handle);
+            fclose($handle);
+            
+            if (!$firstLine) {
+                return false;
+            }
+            
+            $data = json_decode(trim($firstLine), true);
+            
+            // Check if it has the required structure for Qdrant embeddings
+            // Note: ID can be any string since we'll convert it to UUID
+            $isValid = $data !== null 
+                && isset($data['id']) 
+                && !empty($data['id'])
+                && isset($data['vector']) 
+                && is_array($data['vector'])
+                && count($data['vector']) > 0  // Ensure vector has data
+                && isset($data['payload']);
+            
+            // Clean up temporary file
+            FileSystemUtils::cleanupTemporaryFiles($tempPath);
+            
+            return $isValid;
+            
+        } catch (Exception $e) {
+            Log::warning("Failed to validate JSONL file", [
+                'file_id' => $file->id,
+                'file_name' => $file->name,
+                'error' => $e->getMessage()
+            ]);
+            
+            // Clean up temp file on error
+            if ($tempPath) {
+                FileSystemUtils::cleanupTemporaryFiles($tempPath);
+            }
+            
+            return false;
+        }
+    }
+
+    /**
+     * Process JSONL files directly to Qdrant without embedding generation.
+     */
+    private function processJsonlFilesToQdrant(array $jsonlFiles, string $collectionName): int
+    {
+        $totalPoints = 0;
+        
+        foreach ($jsonlFiles as $file) {
+            $tempPath = null;
+            
+            try {
+                Log::info("Processing JSONL file", [
+                    'file_name' => $file->name,
+                    'collection' => $collectionName,
+                    'file_size' => $file->size
+                ]);
+                
+                // Download file temporarily
+                $tempPath = $this->downloadFileTemporarily($file);
+                
+                // Read and process JSONL file
+                $points = [];
+                $handle = fopen($tempPath, 'r');
+                
+                if (!$handle) {
+                    throw new Exception("Could not open JSONL file: {$file->name}");
+                }
+                
+                $lineNumber = 0;
+                while (($line = fgets($handle)) !== false) {
+                    $lineNumber++;
+                    $line = trim($line);
+                    
+                    if (empty($line)) {
+                        continue; // Skip empty lines
+                    }
+                    
+                    $data = json_decode($line, true);
+                    
+                    if ($data === null) {
+                        Log::warning("Invalid JSON on line {$lineNumber} in file {$file->name}");
+                        continue;
+                    }
+                    
+                    // Validate required fields
+                    if (!isset($data['id']) || !isset($data['vector']) || !isset($data['payload'])) {
+                        Log::warning("Missing required fields on line {$lineNumber} in file {$file->name}");
+                        continue;
+                    }
+                    
+                    // Store original ID in payload and generate UUID for Qdrant
+                    $originalId = $data['id'];
+                    $data['payload']['original_id'] = $originalId;
+                    
+                    // Generate a valid UUID for Qdrant point ID
+                    $newId = Str::uuid()->toString();
+                    $data['id'] = $newId;
+                    
+                    // Log ID conversion for first few entries
+                    if ($lineNumber <= 3) {
+                        Log::info("Converting JSONL ID", [
+                            'original_id' => $originalId,
+                            'new_uuid' => $newId,
+                            'line' => $lineNumber
+                        ]);
+                    }
+                    
+                    // Add file metadata to payload
+                    $data['payload']['source_file'] = [
+                        'file_id' => $file->id,
+                        'file_name' => $file->name,
+                        'file_path' => $file->path,
+                        'file_size' => $file->size,
+                        'mime_type' => $file->mime_type
+                    ];
+                    
+                    $points[] = $data;
+                    
+                    // Process in batches to manage memory
+                    if (count($points) >= 100) {
+                        $this->qdrantService->batchInsertPoints($collectionName, $points);
+                        $totalPoints += count($points);
+                        $points = [];
+                        
+                        // Force garbage collection
+                        gc_collect_cycles();
+                    }
+                }
+                
+                fclose($handle);
+                
+                // Process remaining points
+                if (!empty($points)) {
+                    $this->qdrantService->batchInsertPoints($collectionName, $points);
+                    $totalPoints += count($points);
+                }
+                
+                // Clean up temporary file
+                FileSystemUtils::cleanupTemporaryFiles($tempPath);
+                
+                Log::info("Completed processing JSONL file", [
+                    'file_name' => $file->name,
+                    'points_inserted' => $totalPoints
+                ]);
+                
+            } catch (Exception $e) {
+                Log::error("Failed to process JSONL file", [
+                    'file_name' => $file->name,
+                    'error' => $e->getMessage()
+                ]);
+                
+                // Clean up temp file on error
+                if ($tempPath) {
+                    FileSystemUtils::cleanupTemporaryFiles($tempPath);
+                }
+                
+                throw new Exception("Failed to process JSONL file {$file->name}: {$e->getMessage()}");
+            }
+        }
+        
+        return $totalPoints;
     }
 }
