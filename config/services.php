@@ -30,4 +30,27 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+        'base_url' => env('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
+        'embedding_model' => env('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small'),
+        'chat_model' => env('OPENAI_CHAT_MODEL', 'gpt-4'),
+        'max_tokens_per_request' => env('OPENAI_MAX_TOKENS_PER_REQUEST', 8000),
+        'max_tokens' => env('OPENAI_MAX_TOKENS', 4000),
+    ],
+
+    'claude' => [
+        'api_key' => env('CLAUDE_API_KEY'),
+        'base_url' => env('CLAUDE_BASE_URL', 'https://api.anthropic.com/v1'),
+        'model' => env('CLAUDE_MODEL', 'claude-3-sonnet-20240229'),
+        'max_tokens' => env('CLAUDE_MAX_TOKENS', 4000),
+    ],
+
+    'qdrant' => [
+        'url' => env('QDRANT_URL', 'http://localhost:6333'),
+        'api_key' => env('QDRANT_API_KEY'),
+        'default_vector_size' => env('QDRANT_DEFAULT_VECTOR_SIZE', 1536),
+        'timeout' => env('QDRANT_TIMEOUT', 30),
+    ],
+
 ];
