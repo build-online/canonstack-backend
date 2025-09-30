@@ -174,24 +174,6 @@ class AIProviderService
     }
 
     /**
-     * Get available providers.
-     */
-    public function getAvailableProviders(): array
-    {
-        $available = [];
-        
-        foreach ($this->providers as $name => $config) {
-            $available[$name] = [
-                'name' => $name,
-                'default_model' => $config['default_model'],
-                'configured' => !empty($config['api_key']),
-            ];
-        }
-        
-        return $available;
-    }
-
-    /**
      * Check if a provider is configured and available.
      */
     public function isProviderAvailable(string $provider): bool

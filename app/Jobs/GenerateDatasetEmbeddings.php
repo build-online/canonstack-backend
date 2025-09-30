@@ -119,16 +119,4 @@ class GenerateDatasetEmbeddings implements ShouldQueue
             ]);
         }
     }
-
-    /**
-     * Get the tags that should be assigned to the job.
-     */
-    public function tags(): array
-    {
-        return [
-            'embeddings',
-            'dataset:' . $this->dataset->id,
-            'uuid:' . $this->dataset->uuid
-        ];
-    }
 }

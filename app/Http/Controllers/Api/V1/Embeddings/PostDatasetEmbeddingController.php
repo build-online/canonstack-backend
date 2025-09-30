@@ -49,7 +49,7 @@ class PostDatasetEmbeddingController extends Controller
                 );
             }
 
-            if ($existingEmbedding && $existingEmbedding->isProcessing()) {
+            if ($existingEmbedding && ($existingEmbedding->isProcessing() || $existingEmbedding->isPending())) {
                 return response()->sendResponse(
                     $this->embeddingService->getEmbeddingStatus($dataset),
                     null,
@@ -67,7 +67,6 @@ class PostDatasetEmbeddingController extends Controller
 
             // Create new embedding record with PENDING status
             $embedding = DatasetEmbedding::create([
-                'uuid' => \Illuminate\Support\Str::uuid(),
                 'dataset_id' => $dataset->id,
                 'qdrant_collection_name' => 'dataset_' . $dataset->uuid,
                 'embedding_model' => $validated['embedding_model'] ?? config('services.openai.embedding_model'),
