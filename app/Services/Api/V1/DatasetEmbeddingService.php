@@ -2,6 +2,10 @@
 
 namespace App\Services\Api\V1;
 
+use App\Events\DatasetEmbeddingStarted;
+use App\Events\DatasetEmbeddingProgress;
+use App\Events\DatasetEmbeddingCompleted;
+use App\Events\DatasetEmbeddingFailed;
 use App\Models\Dataset;
 use App\Models\DatasetEmbedding;
 use App\Models\RepositoryFile;
@@ -52,6 +56,9 @@ class DatasetEmbeddingService
 
         try {
             $embedding->markAsProcessing();
+            
+            // Broadcast that embedding generation has started
+            broadcast(new DatasetEmbeddingStarted($embedding));
 
             // Check if dataset contains pre-prepared JSONL files
             $jsonlFiles = $this->detectJsonlFiles($dataset);
@@ -63,9 +70,11 @@ class DatasetEmbeddingService
                 ]);
                 
                 // Create Qdrant collection
+                broadcast(new DatasetEmbeddingProgress($embedding, 1, 3, 'Creating Qdrant collection'));
                 $this->ensureQdrantCollection($embedding->qdrant_collection_name);
                 
                 // Process JSONL files directly
+                broadcast(new DatasetEmbeddingProgress($embedding, 2, 3, 'Processing JSONL files'));
                 $totalPoints = $this->processJsonlFilesToQdrant($jsonlFiles, $embedding->qdrant_collection_name);
                 
                 // Mark as completed
@@ -81,6 +90,10 @@ class DatasetEmbeddingService
                 
             } else {
                 // Standard processing for non-JSONL datasets
+                broadcast(new DatasetEmbeddingProgress($embedding, 1, 5, 'Extracting text from dataset files', [
+                    'total_progress_percentage' => 10
+                ]));
+                
                 // Extract text from dataset files
                 $textData = $this->extractTextFromDataset($dataset);
                 
@@ -88,6 +101,10 @@ class DatasetEmbeddingService
                     throw new Exception('No extractable text found in dataset');
                 }
 
+                broadcast(new DatasetEmbeddingProgress($embedding, 2, 5, 'Preparing text chunks', [
+                    'total_progress_percentage' => 25
+                ]));
+                
                 // Prepare chunks
                 $chunks = $this->embeddingService->prepareChunks($textData, $chunkSize, $chunkOverlap);
                 
@@ -95,11 +112,19 @@ class DatasetEmbeddingService
                     throw new Exception('No chunks could be prepared from dataset');
                 }
 
+                broadcast(new DatasetEmbeddingProgress($embedding, 3, 5, 'Creating Qdrant collection', [
+                    'total_progress_percentage' => 40
+                ]));
+                
                 // Create Qdrant collection
                 $this->ensureQdrantCollection($embedding->qdrant_collection_name);
 
-                // Generate embeddings and store in Qdrant
-                $totalPoints = $this->processChunksToQdrant($chunks, $embedding->qdrant_collection_name);
+                broadcast(new DatasetEmbeddingProgress($embedding, 4, 5, 'Generating embeddings and storing in Qdrant', [
+                    'total_progress_percentage' => 60
+                ]));
+                
+                // Generate embeddings and store in Qdrant with detailed progress
+                $totalPoints = $this->processChunksToQdrant($chunks, $embedding->qdrant_collection_name, $embedding);
 
                 // Mark as completed
                 $processingStats = [
@@ -110,8 +135,14 @@ class DatasetEmbeddingService
                     'average_chunk_size' => round(array_sum(array_map('strlen', array_column($chunks, 'text'))) / count($chunks))
                 ];
 
+                broadcast(new DatasetEmbeddingProgress($embedding, 5, 5, 'Finalizing embedding generation', [
+                    'total_progress_percentage' => 95
+                ]));
                 $embedding->markAsCompleted(count($chunks), $totalPoints, $processingStats);
             }
+
+            // Broadcast completion
+            broadcast(new DatasetEmbeddingCompleted($embedding));
 
             Log::info("Embedding generation completed", [
                 'dataset_id' => $dataset->id,
@@ -123,6 +154,10 @@ class DatasetEmbeddingService
 
         } catch (Exception $e) {
             $embedding->markAsFailed($e->getMessage());
+            
+            // Broadcast failure
+            broadcast(new DatasetEmbeddingFailed($embedding, $e->getMessage()));
+            
             Log::error("Embedding generation failed", [
                 'dataset_id' => $dataset->id,
                 'error' => $e->getMessage()
@@ -302,7 +337,7 @@ class DatasetEmbeddingService
     /**
      * Process chunks and store in Qdrant with memory-efficient batching.
      */
-    private function processChunksToQdrant(array $chunks, string $collectionName): int
+    private function processChunksToQdrant(array $chunks, string $collectionName, ?DatasetEmbedding $embedding = null): int
     {
         $totalChunks = count($chunks);
         $batchSize = 50; // Start with smaller batches
@@ -326,6 +361,31 @@ class DatasetEmbeddingService
                 'batch_size' => count($chunkBatch),
                 'memory_usage_mb' => round(memory_get_usage(true) / 1024 / 1024, 2)
             ]);
+            
+            // Broadcast detailed batch progress if embedding is provided
+            if ($embedding) {
+                // Calculate more granular progress for the embedding step
+                // Step 4 is the embedding generation (steps 1-3 are 60% of total, step 4 is 35%, step 5 is 5%)
+                $baseProgress = 60; // Steps 1-3 completed
+                $embeddingStepProgress = ($batchNumber / $totalBatches) * 35; // Step 4 progress (35% of total)
+                $totalProgressPercentage = $baseProgress + $embeddingStepProgress;
+                
+                broadcast(new DatasetEmbeddingProgress(
+                    $embedding,
+                    $batchNumber,
+                    $totalBatches,
+                    "Processing batch {$batchNumber}/{$totalBatches}",
+                    [
+                        'chunks_processed' => $offset + count($chunkBatch),
+                        'total_chunks' => $totalChunks,
+                        'memory_usage_mb' => round(memory_get_usage(true) / 1024 / 1024, 2),
+                        'embedding_step_progress' => round($embeddingStepProgress, 1),
+                        'total_progress_percentage' => round($totalProgressPercentage, 1),
+                        'current_batch' => $batchNumber,
+                        'total_batches' => $totalBatches
+                    ]
+                ));
+            }
 
             try {
                 // Extract texts for this batch
