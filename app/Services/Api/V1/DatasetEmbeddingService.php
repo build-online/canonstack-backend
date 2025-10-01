@@ -643,13 +643,13 @@ class DatasetEmbeddingService
                         continue;
                     }
                     
-                    // Store original ID in payload and generate UUID for Qdrant
+                    // Store original ID and generate UUID for Qdrant
                     $originalId = $data['id'];
-                    $data['payload']['original_id'] = $originalId;
+                    $originalVector = $data['vector'];
+                    $originalPayload = $data['payload'];
                     
                     // Generate a valid UUID for Qdrant point ID
                     $newId = Str::uuid()->toString();
-                    $data['id'] = $newId;
                     
                     // Log ID conversion for first few entries
                     if ($lineNumber <= 3) {
@@ -660,14 +660,24 @@ class DatasetEmbeddingService
                         ]);
                     }
                     
-                    // Add file metadata to payload
-                    $data['payload']['source_file'] = [
-                        'file_id' => $file->id,
-                        'file_name' => $file->name,
-                        'file_path' => $file->path,
-                        'file_size' => $file->size,
-                        'mime_type' => $file->mime_type
+                    // Create new payload structure with all original data as metadata
+                    $newPayload = [
+                        'original_id' => $originalId,
+                        'text' => $originalPayload['text'] ?? '', // Extract text field for Qdrant
+                        'metadata' => $originalPayload, // Include all original payload data as metadata
+                        'source_file' => [
+                            'file_id' => $file->id,
+                            'file_name' => $file->name,
+                            'file_path' => $file->path,
+                            'file_size' => $file->size,
+                            'mime_type' => $file->mime_type
+                        ]
                     ];
+                    
+                    // Update the data structure
+                    $data['id'] = $newId;
+                    $data['vector'] = $originalVector;
+                    $data['payload'] = $newPayload;
                     
                     $points[] = $data;
                     
