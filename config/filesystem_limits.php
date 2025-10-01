@@ -128,6 +128,9 @@ return [
             // Configuration
             'config', 'cfg', 'ini', 'toml',
             
+            // Git and version control files
+            'gitattributes', 'gitignore', 'gitkeep', 'gitmodules', 'sample',
+            
             // Archives
             'tar', 'gz', 'bz2', 'xz',
         ],

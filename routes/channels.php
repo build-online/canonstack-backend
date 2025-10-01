@@ -16,3 +16,8 @@ use Illuminate\Support\Facades\Broadcast;
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
     return (int) $user->id === (int) $id;
 });
+
+// Channel pattern for dataset embedding (without private- prefix as Laravel adds it automatically)
+Broadcast::channel('dataset-embedding.{datasetUuid}', function ($user, $datasetUuid) {
+    return $user !== null;
+});

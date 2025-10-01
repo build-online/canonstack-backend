@@ -165,7 +165,6 @@ class RepositoryService
     {
         return Repository::with(['user:id,uuid,name,username', 'model:id,uuid,repository_id', 'dataset:id,uuid,repository_id'])
             ->where('name', 'LIKE', '%' . $query . '%')
-            ->where('status', 'ACCEPTED') // Only include approved repositories
             ->where(function ($q) {
                 $q->whereHas('model')
                   ->orWhereHas('dataset');
