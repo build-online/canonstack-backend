@@ -25,6 +25,9 @@ class PostDatasetController extends Controller
      */
     public function __invoke(PostDatasetRequest $request): JsonResponse
     {
+        // Increase execution time limit for dataset upload and processing
+        set_time_limit(120);
+        
         try {
             $dataset = $this->datasetsService->uploadDataset(
                 $request->validated(), 

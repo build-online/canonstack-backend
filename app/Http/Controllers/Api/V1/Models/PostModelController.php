@@ -25,6 +25,9 @@ class PostModelController extends Controller
      */
     public function __invoke(PostModelRequest $request): JsonResponse
     {
+        // Increase execution time limit for model upload and processing
+        set_time_limit(120);
+        
         try {
             $model = $this->modelsService->uploadModel(
                 $request->validated(),
