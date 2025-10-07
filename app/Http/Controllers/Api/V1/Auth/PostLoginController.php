@@ -8,6 +8,7 @@ use Illuminate\Validation\ValidationException;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Events\UserLoggedIn;
 
 class PostLoginController extends Controller
 {
@@ -28,6 +29,9 @@ class PostLoginController extends Controller
             $user->tokens()->delete();
             
             $token = $user->createToken($user->uuid)->plainTextToken;
+
+            // Dispatch user logged in event
+            event(new UserLoggedIn($user));
 
             return response()->sendResponse(['token' => $token], null, 'Logged in successfully');
         }

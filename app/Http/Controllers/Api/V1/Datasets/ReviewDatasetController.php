@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Review\ReviewRepositoryRequest;
 use App\Services\Api\V1\ReviewService;
 use App\Transformers\DatasetTransformer;
+use App\Events\DatasetApproved;
 use Illuminate\Http\JsonResponse;
 use App\Models\Dataset;
 use Exception;
@@ -38,6 +39,11 @@ class ReviewDatasetController extends Controller
 
             $action = $reviewData['action'] === 'APPROVE' ? 'approved' : 'declined';
             $message = "Dataset {$action} successfully";
+            
+            // Dispatch dataset approved event if approved
+            if ($reviewData['action'] === 'APPROVE') {
+                event(new DatasetApproved($dataset, $approver));
+            }
 
             return response()->sendResponse(
                 $dataset,

@@ -53,4 +53,10 @@ return [
         'timeout' => env('QDRANT_TIMEOUT', 30),
     ],
 
+    'slack' => [
+        'webhook_url' => env('SLACK_WEBHOOK_URL'),
+        'channel' => env('SLACK_CHANNEL', '#canonstack'),
+        'username' => env('SLACK_BOT_USERNAME', 'CanonStack Bot'),
+        'icon_emoji' => env('SLACK_BOT_ICON', ':robot_face:'),
+    ],
 ];

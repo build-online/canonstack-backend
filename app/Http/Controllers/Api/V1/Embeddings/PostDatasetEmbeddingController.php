@@ -30,6 +30,14 @@ class PostDatasetEmbeddingController extends Controller
                 ->with('repository')
                 ->firstOrFail();
 
+            // Check if the authenticated user is the creator of the dataset
+            if ($dataset->repository->user_id !== auth()->id()) {
+                return response()->sendError(
+                    'You are not authorized to create embeddings for this dataset. Only the dataset creator can generate vectorized embeddings.',
+                    403
+                );
+            }
+
             // Validate request parameters
             $validated = $request->validate([
                 'chunk_size' => 'sometimes|integer|min:100|max:8000',

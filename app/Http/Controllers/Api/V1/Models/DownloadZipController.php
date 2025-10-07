@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ModelRepository;
 use App\Services\Api\V1\FileSystemService;
 use App\Services\Api\V1\DownloadsService;
+use App\Events\ModelDownloaded;
 use Illuminate\Http\JsonResponse;
 use Exception;
 
@@ -31,6 +32,9 @@ class DownloadZipController extends Controller
         try {
             $downloadUrl = $this->fileSystemService->getZipDownloadUrl($repository);
             $this->downloadsService->trackDownload($repository, auth()->id());
+            
+            // Dispatch model downloaded event
+            event(new ModelDownloaded($model, auth()->user()));
             
             return response()->sendResponse([
                 'download_url' => $downloadUrl,

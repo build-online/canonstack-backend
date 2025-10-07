@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Review\ReviewRepositoryRequest;
 use App\Services\Api\V1\ReviewService;
 use App\Transformers\ModelRepositoryTransformer;
+use App\Events\ModelApproved;
 use Illuminate\Http\JsonResponse;
 use App\Models\ModelRepository;
 use Exception;
@@ -38,6 +39,11 @@ class ReviewModelController extends Controller
 
             $action = $reviewData['action'] === 'APPROVE' ? 'approved' : 'declined';
             $message = "Model {$action} successfully";
+            
+            // Dispatch model approved event if approved
+            if ($reviewData['action'] === 'APPROVE') {
+                event(new ModelApproved($model, $approver));
+            }
 
             return response()->sendResponse(
                 $model,
