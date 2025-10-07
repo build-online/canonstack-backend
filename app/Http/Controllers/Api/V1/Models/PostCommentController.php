@@ -7,6 +7,7 @@ use App\Http\Requests\Api\V1\Comments\PostCommentRequest;
 use App\Models\ModelRepository;
 use App\Models\Comment;
 use App\Transformers\CommentTransformer;
+use App\Events\ModelCommented;
 use Illuminate\Http\JsonResponse;
 use Exception;
 
@@ -38,6 +39,9 @@ class PostCommentController extends Controller
             ]);
 
             $comment->load('user');
+
+            // Dispatch model commented event
+            event(new ModelCommented($model, $comment));
 
             return response()->sendResponse(
                 $comment,
