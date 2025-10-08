@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Transformers\UserTransformer;
+use App\Events\UserCreated;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -41,6 +42,9 @@ class PostRegisterController extends Controller
         $data['role'] = 'REGULAR';
         
         $user = User::create($data);
+        
+        // Dispatch user created event
+        event(new UserCreated($user));
         
         return response()->sendResponse([
             'user' => $this->userTranformer->transform($user),

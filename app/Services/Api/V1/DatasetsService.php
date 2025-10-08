@@ -6,6 +6,7 @@ use App\Models\Dataset;
 use App\Models\Repository;
 use App\Models\Category;
 use App\Models\Tag;
+use App\Events\DatasetCreated;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -47,6 +48,9 @@ class DatasetsService
             $this->fileSystemService->extractAndStoreZipContents($repository);
             
             DB::commit();
+            
+            // Dispatch dataset created event
+            event(new DatasetCreated($dataset));
             
             return $dataset->fresh([
                 'repository' => function ($query) {

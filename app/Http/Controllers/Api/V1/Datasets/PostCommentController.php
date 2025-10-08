@@ -7,6 +7,7 @@ use App\Http\Requests\Api\V1\Comments\PostCommentRequest;
 use App\Models\Dataset;
 use App\Models\Comment;
 use App\Transformers\CommentTransformer;
+use App\Events\DatasetCommented;
 use Illuminate\Http\JsonResponse;
 use Exception;
 
@@ -38,6 +39,9 @@ class PostCommentController extends Controller
             ]);
 
             $comment->load('user');
+
+            // Dispatch dataset commented event
+            event(new DatasetCommented($dataset, $comment));
 
             return response()->sendResponse(
                 $comment,

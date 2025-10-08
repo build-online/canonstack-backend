@@ -6,6 +6,7 @@ use App\Models\Repository;
 use App\Models\ModelRepository;
 use App\Models\Category;
 use App\Models\Tag;
+use App\Events\ModelCreated;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -47,6 +48,9 @@ class ModelsService
             $this->fileSystemService->extractAndStoreZipContents($repository);
             
             DB::commit();
+            
+            // Dispatch model created event
+            event(new ModelCreated($model));
             return $model->fresh([
                 'repository' => function ($query) {
                     $query->withCount(['downloads', 'likes', 'comments']);
