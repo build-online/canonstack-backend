@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\V1\Datasets\DeleteDatasetController;
 use App\Http\Controllers\Api\V1\Datasets\PostLikeController as DatasetPostLikeController;
 use App\Http\Controllers\Api\V1\Datasets\PostUnlikeController as DatasetPostUnlikeController;
 use App\Http\Controllers\Api\V1\Datasets\PostCommentController as DatasetPostCommentController;
+use App\Http\Controllers\Api\V1\Datasets\PostAnalyzeJsonlController;
 use App\Http\Controllers\Api\V1\Search\SearchRepositoriesController;
 use App\Http\Controllers\Api\V1\Stats\GetStatsController;
 use App\Http\Controllers\Api\V1\Featured\GetFeaturedRepositoriesController;
@@ -126,6 +127,7 @@ Route::group(['prefix' => 'v1'], function () {
             Route::post('{uuid}/unlike', DatasetPostUnlikeController::class)->name('v1.datasets.unlike');
             Route::post('{uuid}/comments', DatasetPostCommentController::class)->name('v1.datasets.comments.store');
             Route::patch('{uuid}/review', ReviewDatasetController::class)->name('v1.datasets.review');
+            Route::post('{uuid}/analyze-jsonl', PostAnalyzeJsonlController::class)->name('v1.datasets.analyze-jsonl');
         });
     });
 

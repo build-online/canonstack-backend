@@ -35,6 +35,11 @@ class PostComplexEmbeddingController extends Controller
                 'force' => 'sometimes|boolean',
                 'chunk_size' => 'sometimes|integer|min:100|max:8000',
                 'chunk_overlap' => 'sometimes|integer|min:0|max:1000',
+                'jsonl_config' => 'sometimes|array',
+                'jsonl_config.text_field' => 'required_with:jsonl_config|string',
+                'jsonl_config.vector_field' => 'sometimes|string', // For pre-embedded JSONL
+                'jsonl_config.metadata_fields' => 'sometimes|array',
+                'jsonl_config.metadata_fields.*' => 'string',
             ]);
 
             // Check if embeddings already exist for this variant
@@ -69,6 +74,16 @@ class PostComplexEmbeddingController extends Controller
             }
 
             // Create new embedding record with PENDING status
+            $processingStats = [
+                'chunk_size' => $validated['chunk_size'] ?? 1000,
+                'chunk_overlap' => $validated['chunk_overlap'] ?? 200,
+            ];
+            
+            // Add JSONL configuration if provided
+            if (isset($validated['jsonl_config'])) {
+                $processingStats['jsonl_config'] = $validated['jsonl_config'];
+            }
+            
             $embedding = DatasetEmbedding::create([
                 'dataset_id' => $dataset->id,
                 'variant' => 'complex',
@@ -77,10 +92,7 @@ class PostComplexEmbeddingController extends Controller
                 'status' => 'PENDING',
                 'chunk_size' => $validated['chunk_size'] ?? 1000,
                 'chunk_overlap' => $validated['chunk_overlap'] ?? 200,
-                'processing_stats' => [
-                    'chunk_size' => $validated['chunk_size'] ?? 1000,
-                    'chunk_overlap' => $validated['chunk_overlap'] ?? 200,
-                ]
+                'processing_stats' => $processingStats
             ]);
 
             // Queue the background job

@@ -185,7 +185,43 @@ class DatasetEmbeddingService
         ]);
 
         try {
-            // Check if dataset contains pre-prepared JSONL files
+            // Check if JSONL configuration is provided (for raw JSONL files)
+            $jsonlConfig = $options['jsonl_config'] ?? null;
+            
+            if ($jsonlConfig) {
+                Log::info("Processing raw JSONL files with field mapping", [
+                    'dataset_id' => $dataset->id,
+                    'variant' => $embedding->variant,
+                    'text_field' => $jsonlConfig['text_field'],
+                    'metadata_fields' => $jsonlConfig['metadata_fields'] ?? [],
+                ]);
+                
+                // Create Qdrant collection
+                $this->ensureQdrantCollection($embedding->qdrant_collection_name);
+                
+                // Get ALL JSONL files (both pre-embedded and raw)
+                $jsonlFiles = $this->detectAllJsonlFiles($dataset);
+                $totalPoints = $this->processRawJsonlFilesToQdrant(
+                    $jsonlFiles, 
+                    $embedding->qdrant_collection_name,
+                    $jsonlConfig
+                );
+                
+                // Return results
+                return [
+                    'total_chunks' => count($jsonlFiles),
+                    'total_points' => $totalPoints,
+                    'processing_stats' => [
+                        'total_files_processed' => count($jsonlFiles),
+                        'method' => 'raw_jsonl_with_mapping',
+                        'variant' => $embedding->variant,
+                        'text_field' => $jsonlConfig['text_field'],
+                        'metadata_fields' => $jsonlConfig['metadata_fields'] ?? [],
+                    ],
+                ];
+            }
+            
+            // Check if dataset contains pre-prepared JSONL files (with embeddings)
             $jsonlFiles = $this->detectJsonlFiles($dataset);
             
             if (!empty($jsonlFiles)) {
@@ -846,6 +882,319 @@ class DatasetEmbeddingService
                 }
                 
                 throw new Exception("Failed to process JSONL file {$file->name}: {$e->getMessage()}");
+            }
+        }
+        
+        return $totalPoints;
+    }
+
+    /**
+     * Detect ALL JSONL files in a dataset (both pre-embedded and raw).
+     */
+    private function detectAllJsonlFiles(Dataset $dataset): array
+    {
+        $repository = $dataset->repository;
+        $files = $repository->files()->where('type', 'file')->get();
+        
+        $jsonlFiles = [];
+        
+        foreach ($files as $file) {
+            if (str_ends_with(strtolower($file->name), '.jsonl')) {
+                $jsonlFiles[] = $file;
+            }
+        }
+        
+        return $jsonlFiles;
+    }
+
+    /**
+     * Detect raw JSONL files (without pre-embedded vectors) in a dataset.
+     */
+    private function detectRawJsonlFiles(Dataset $dataset): array
+    {
+        $repository = $dataset->repository;
+        $files = $repository->files()->where('type', 'file')->get();
+        
+        $jsonlFiles = [];
+        
+        foreach ($files as $file) {
+            if ($this->isRawJsonlFile($file)) {
+                $jsonlFiles[] = $file;
+            }
+        }
+        
+        return $jsonlFiles;
+    }
+
+    /**
+     * Check if a file is a raw JSONL file (not pre-embedded).
+     */
+    private function isRawJsonlFile(RepositoryFile $file): bool
+    {
+        // Check file extension
+        if (!str_ends_with(strtolower($file->name), '.jsonl')) {
+            return false;
+        }
+
+        $tempPath = null;
+        
+        try {
+            // Download file temporarily to check format
+            $tempPath = $this->downloadFileTemporarily($file);
+            
+            // Read first line to validate format
+            $handle = fopen($tempPath, 'r');
+            if (!$handle) {
+                return false;
+            }
+            
+            $firstLine = fgets($handle);
+            fclose($handle);
+            
+            if (!$firstLine) {
+                return false;
+            }
+            
+            $data = json_decode(trim($firstLine), true);
+            
+            // If it has a 'vector' field with array values, it's pre-embedded
+            $isPreEmbedded = $data !== null 
+                && isset($data['vector']) 
+                && is_array($data['vector'])
+                && count($data['vector']) > 0;
+            
+            // Clean up temporary file
+            FileSystemUtils::cleanupTemporaryFiles($tempPath);
+            
+            // Return true if it's NOT pre-embedded and has valid JSON structure
+            return $data !== null && !$isPreEmbedded;
+            
+        } catch (Exception $e) {
+            Log::warning("Failed to check raw JSONL file", [
+                'file_id' => $file->id,
+                'file_name' => $file->name,
+                'error' => $e->getMessage()
+            ]);
+            
+            // Clean up temp file on error
+            if ($tempPath) {
+                FileSystemUtils::cleanupTemporaryFiles($tempPath);
+            }
+            
+            return false;
+        }
+    }
+
+    /**
+     * Process JSONL files with field mapping.
+     * If vector_field is specified, reuse existing vectors.
+     * Otherwise, generate embeddings from text_field.
+     */
+    private function processRawJsonlFilesToQdrant(array $jsonlFiles, string $collectionName, array $jsonlConfig): int
+    {
+        $totalPoints = 0;
+        $textField = $jsonlConfig['text_field'];
+        $vectorField = $jsonlConfig['vector_field'] ?? null;
+        $metadataFields = $jsonlConfig['metadata_fields'] ?? [];
+        
+        $useExistingVectors = !empty($vectorField);
+        
+        Log::info("Processing JSONL files with field mapping", [
+            'text_field' => $textField,
+            'vector_field' => $vectorField,
+            'metadata_fields' => $metadataFields,
+            'use_existing_vectors' => $useExistingVectors
+        ]);
+        
+        foreach ($jsonlFiles as $file) {
+            $tempPath = null;
+            
+            try {
+                Log::info("Processing raw JSONL file with field mapping", [
+                    'file_name' => $file->name,
+                    'collection' => $collectionName,
+                    'text_field' => $textField,
+                    'metadata_fields' => $metadataFields,
+                ]);
+                
+                // Download file temporarily
+                $tempPath = $this->downloadFileTemporarily($file);
+                
+                // Read and process JSONL file
+                $points = [];
+                $batchSize = 100; // Process in batches
+                $handle = fopen($tempPath, 'r');
+                
+                if (!$handle) {
+                    throw new Exception("Could not open JSONL file: {$file->name}");
+                }
+                
+                $lineNumber = 0;
+                while (($line = fgets($handle)) !== false) {
+                    $lineNumber++;
+                    $line = trim($line);
+                    
+                    if (empty($line)) {
+                        continue; // Skip empty lines
+                    }
+                    
+                    $data = json_decode($line, true);
+                    
+                    if ($data === null) {
+                        Log::warning("Invalid JSON on line {$lineNumber} in file {$file->name}");
+                        continue;
+                    }
+                    
+                    // Check if this is pre-embedded JSONL (has payload)
+                    $isPreEmbedded = isset($data['payload']) && is_array($data['payload']);
+                    $dataToProcess = $isPreEmbedded ? $data['payload'] : $data;
+                    
+                    // Check if text field exists (in payload for pre-embedded, root for raw)
+                    if (!isset($dataToProcess[$textField])) {
+                        Log::warning("Text field '{$textField}' not found on line {$lineNumber} in file {$file->name}");
+                        continue;
+                    }
+                    
+                    $textContent = $dataToProcess[$textField];
+                    
+                    if (empty($textContent) || !is_string($textContent)) {
+                        Log::warning("Empty or non-string text content on line {$lineNumber} in file {$file->name}");
+                        continue;
+                    }
+                    
+                    // Extract metadata fields (from payload for pre-embedded, root for raw)
+                    $metadata = [];
+                    foreach ($metadataFields as $metadataField) {
+                        if (isset($dataToProcess[$metadataField])) {
+                            $metadata[$metadataField] = $dataToProcess[$metadataField];
+                        }
+                    }
+                    
+                    // Get or generate vector
+                    try {
+                        $vector = null;
+                        
+                        if ($useExistingVectors) {
+                            // Use existing vector from the specified field
+                            // For pre-embedded JSONL, vector is at root level
+                            // For raw JSONL, vector could be anywhere (check dataToProcess)
+                            $vectorSource = $isPreEmbedded ? $data : $dataToProcess;
+                            
+                            if (!isset($vectorSource[$vectorField])) {
+                                // Log detailed info for first 3 failures
+                                if ($lineNumber <= 3) {
+                                    Log::error("Vector field '{$vectorField}' not found - DETAILED DEBUG", [
+                                        'line_number' => $lineNumber,
+                                        'file_name' => $file->name,
+                                        'is_pre_embedded' => $isPreEmbedded,
+                                        'vector_field_looking_for' => $vectorField,
+                                        'root_keys' => array_keys($data),
+                                        'payload_keys' => $isPreEmbedded && isset($data['payload']) ? array_keys($data['payload']) : 'N/A',
+                                        'using_source' => $isPreEmbedded ? 'root ($data)' : 'dataToProcess',
+                                        'vector_source_keys' => array_keys($vectorSource)
+                                    ]);
+                                }
+                                continue;
+                            }
+                            
+                            $vector = $vectorSource[$vectorField];
+                            
+                            if (!is_array($vector) || empty($vector)) {
+                                Log::warning("Invalid vector on line {$lineNumber} in file {$file->name}");
+                                continue;
+                            }
+                            
+                            Log::debug("Reusing existing vector", [
+                                'file_name' => $file->name,
+                                'line_number' => $lineNumber,
+                                'vector_dimensions' => count($vector),
+                                'is_pre_embedded' => $isPreEmbedded
+                            ]);
+                        } else {
+                            // Generate new embedding from text content
+                            $vector = $this->embeddingService->generateEmbedding($textContent);
+                            
+                            Log::debug("Generated new embedding", [
+                                'file_name' => $file->name,
+                                'line_number' => $lineNumber,
+                                'vector_dimensions' => count($vector)
+                            ]);
+                        }
+                        
+                        // Create point for Qdrant
+                        $pointId = Str::uuid()->toString();
+                        
+                        // Structure payload: text at root level, selected fields nested under metadata
+                        $payload = [
+                            'text' => $textContent,
+                        ];
+                        
+                        // Add metadata object if there are any metadata fields
+                        if (!empty($metadata)) {
+                            $payload['metadata'] = $metadata;
+                        }
+                        
+                        $points[] = [
+                            'id' => $pointId,
+                            'vector' => $vector,
+                            'payload' => $payload
+                        ];
+                        
+                        // Insert in batches
+                        if (count($points) >= $batchSize) {
+                            $this->qdrantService->batchInsertPoints($collectionName, $points);
+                            $totalPoints += count($points);
+                            
+                            Log::info("Batch inserted points from JSONL", [
+                                'file_name' => $file->name,
+                                'points_count' => count($points),
+                                'total_so_far' => $totalPoints,
+                                'using_existing_vectors' => $useExistingVectors
+                            ]);
+                            
+                            $points = [];
+                            
+                            // Force garbage collection
+                            gc_collect_cycles();
+                        }
+                        
+                    } catch (Exception $e) {
+                        Log::error("Failed to process line {$lineNumber}", [
+                            'file_name' => $file->name,
+                            'error' => $e->getMessage()
+                        ]);
+                        continue;
+                    }
+                }
+                
+                fclose($handle);
+                
+                // Process remaining points
+                if (!empty($points)) {
+                    $this->qdrantService->batchInsertPoints($collectionName, $points);
+                    $totalPoints += count($points);
+                }
+                
+                // Clean up temporary file
+                FileSystemUtils::cleanupTemporaryFiles($tempPath);
+                
+                Log::info("Completed processing raw JSONL file", [
+                    'file_name' => $file->name,
+                    'points_inserted' => $totalPoints
+                ]);
+                
+            } catch (Exception $e) {
+                Log::error("Failed to process raw JSONL file", [
+                    'file_name' => $file->name,
+                    'error' => $e->getMessage()
+                ]);
+                
+                // Clean up temp file on error
+                if ($tempPath) {
+                    FileSystemUtils::cleanupTemporaryFiles($tempPath);
+                }
+                
+                throw new Exception("Failed to process raw JSONL file {$file->name}: {$e->getMessage()}");
             }
         }
         
