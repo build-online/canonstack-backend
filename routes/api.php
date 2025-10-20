@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Broadcast;
 
 use App\Http\Controllers\Api\V1\Auth\ChangePasswordController;
 use App\Http\Controllers\Api\V1\Auth\GetMeController;
@@ -76,6 +77,9 @@ use App\Http\Controllers\Api\V1\Experiments\DeleteConversationController as Expe
 */
 
 Route::redirect('v1/sanctum/csrf-cookie', '/sanctum/csrf-cookie');
+
+// Broadcasting authentication (for WebSocket private channels)
+Broadcast::routes(['middleware' => ['auth:sanctum']]);
 
 Route::group(['prefix' => 'v1'], function () {
     Route::prefix('auth')->group(function () {
