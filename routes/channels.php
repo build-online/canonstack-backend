@@ -21,3 +21,8 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 Broadcast::channel('dataset-embedding.{datasetUuid}', function ($user, $datasetUuid) {
     return $user !== null;
 });
+
+// Channel pattern for dataset (supports multiple variants)
+Broadcast::channel('dataset.{datasetUuid}', function ($user, $datasetUuid) {
+    return $user !== null;
+});

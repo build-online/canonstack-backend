@@ -56,6 +56,13 @@ use App\Http\Controllers\Api\V1\DatasetEmbeddings\PostConversationMessageControl
 use App\Http\Controllers\Api\V1\DatasetEmbeddings\GetConversationController;
 use App\Http\Controllers\Api\V1\DatasetEmbeddings\DeleteConversationController;
 use App\Http\Controllers\Api\V1\Debug\SearchDebugController;
+use App\Http\Controllers\Api\V1\Experiments\PostSimpleEmbeddingController;
+use App\Http\Controllers\Api\V1\Experiments\PostComplexEmbeddingController;
+use App\Http\Controllers\Api\V1\Experiments\GetEmbeddingVariantsController;
+use App\Http\Controllers\Api\V1\Experiments\PostSimpleChatController;
+use App\Http\Controllers\Api\V1\Experiments\PostComplexChatController;
+use App\Http\Controllers\Api\V1\Experiments\GetConversationController as ExperimentsGetConversationController;
+use App\Http\Controllers\Api\V1\Experiments\DeleteConversationController as ExperimentsDeleteConversationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -170,6 +177,34 @@ Route::group(['prefix' => 'v1'], function () {
 
         Route::prefix('debug')->group(function () {
             Route::post('datasets/{uuid}/search', SearchDebugController::class)->name('v1.debug.datasets.search');
-        });        
+        });
+
+        // Experimental RAG features
+        Route::prefix('experiments')->group(function () {
+            // Embedding generation
+            Route::post('datasets/{uuid}/embeddings/simple', PostSimpleEmbeddingController::class)
+                ->name('v1.experiments.embeddings.simple.store');
+            
+            Route::post('datasets/{uuid}/embeddings/complex', PostComplexEmbeddingController::class)
+                ->name('v1.experiments.embeddings.complex.store');
+            
+            // Status check
+            Route::get('datasets/{uuid}/embeddings', GetEmbeddingVariantsController::class)
+                ->name('v1.experiments.embeddings.index');
+            
+            // Chat endpoints
+            Route::post('datasets/{uuid}/chat/simple', PostSimpleChatController::class)
+                ->name('v1.experiments.chat.simple.store');
+            
+            Route::post('datasets/{uuid}/chat/complex', PostComplexChatController::class)
+                ->name('v1.experiments.chat.complex.store');
+            
+            // Conversation history
+            Route::get('datasets/{uuid}/conversation/{variant}', ExperimentsGetConversationController::class)
+                ->name('v1.experiments.conversation.show');
+            
+            Route::delete('datasets/{uuid}/conversation/{variant}', ExperimentsDeleteConversationController::class)
+                ->name('v1.experiments.conversation.destroy');
+        });
      });
 });

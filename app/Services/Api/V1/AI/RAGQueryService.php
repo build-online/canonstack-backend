@@ -28,12 +28,17 @@ class RAGQueryService
         Dataset $dataset,
         string $query,
         string $aiProvider = 'openai',
-        array $options = []
+        array $options = [],
+        ?string $variant = null
     ): array {
         // Validate that embeddings exist and are ready
-        $embedding = $dataset->embedding;
+        $embedding = $variant 
+            ? $dataset->getEmbeddingByVariant($variant)
+            : $dataset->embedding;
+            
         if (!$embedding || !$embedding->isCompleted()) {
-            throw new Exception('Dataset embeddings are not available or not completed. Please generate embeddings first.');
+            $variantText = $variant ? " (variant: {$variant})" : '';
+            throw new Exception("Dataset embeddings{$variantText} are not available or not completed. Please generate embeddings first.");
         }
 
         // Validate AI provider
@@ -55,7 +60,8 @@ class RAGQueryService
                 $dataset,
                 $query,
                 $options['search_limit'] ?? 10,
-                $options['search_filter'] ?? null
+                $options['search_filter'] ?? null,
+                $variant
             );
 
             Log::info("Vector search completed", [
