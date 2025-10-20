@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\Traits\HasUuid;
 
 class Dataset extends Model
@@ -37,10 +38,27 @@ class Dataset extends Model
     }
 
     /**
-     * Get the embedding for this dataset.
+     * Get all embeddings for this dataset.
+     */
+    public function embeddings(): HasMany
+    {
+        return $this->hasMany(DatasetEmbedding::class);
+    }
+
+    /**
+     * Get the production embedding (non-experimental).
+     * Kept for backward compatibility.
      */
     public function embedding(): HasOne
     {
-        return $this->hasOne(DatasetEmbedding::class);
+        return $this->hasOne(DatasetEmbedding::class)->whereNull('variant');
+    }
+
+    /**
+     * Get embedding by variant (simple or complex).
+     */
+    public function getEmbeddingByVariant(string $variant): ?DatasetEmbedding
+    {
+        return $this->embeddings()->where('variant', $variant)->first();
     }
 }

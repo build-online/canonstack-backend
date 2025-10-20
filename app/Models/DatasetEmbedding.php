@@ -17,6 +17,7 @@ class DatasetEmbedding extends Model
     protected $fillable = [
         'uuid',
         'dataset_id',
+        'variant',
         'qdrant_collection_name',
         'total_chunks',
         'total_points',
@@ -120,6 +121,14 @@ class DatasetEmbedding extends Model
     public function isPending(): bool
     {
         return $this->status === 'PENDING';
+    }
+
+    /**
+     * Check if this is an experimental embedding (has a variant).
+     */
+    public function isExperimental(): bool
+    {
+        return $this->variant !== null;
     }
 
 

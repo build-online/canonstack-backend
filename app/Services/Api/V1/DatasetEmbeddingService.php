@@ -167,20 +167,146 @@ class DatasetEmbeddingService
     }
 
     /**
+     * Generate embeddings for a variant using an existing DatasetEmbedding record.
+     * This method doesn't create a new embedding record, it uses the one provided.
+     */
+    public function generateEmbeddingsForVariant(Dataset $dataset, DatasetEmbedding $embedding, array $options = []): array
+    {
+        $chunkSize = $options['chunk_size'] ?? 1000;
+        $chunkOverlap = $options['chunk_overlap'] ?? 200;
+
+        Log::info("Starting variant embedding generation", [
+            'dataset_id' => $dataset->id,
+            'dataset_uuid' => $dataset->uuid,
+            'variant' => $embedding->variant,
+            'collection' => $embedding->qdrant_collection_name,
+            'chunk_size' => $chunkSize,
+            'chunk_overlap' => $chunkOverlap
+        ]);
+
+        try {
+            // Check if dataset contains pre-prepared JSONL files
+            $jsonlFiles = $this->detectJsonlFiles($dataset);
+            
+            if (!empty($jsonlFiles)) {
+                Log::info("Detected pre-prepared JSONL files for variant", [
+                    'dataset_id' => $dataset->id,
+                    'variant' => $embedding->variant,
+                    'jsonl_files' => array_map(fn($f) => $f->name, $jsonlFiles)
+                ]);
+                
+                // Create Qdrant collection
+                $this->ensureQdrantCollection($embedding->qdrant_collection_name);
+                
+                // Process JSONL files directly
+                $totalPoints = $this->processJsonlFilesToQdrant($jsonlFiles, $embedding->qdrant_collection_name);
+                
+                // Return results
+                return [
+                    'total_chunks' => count($jsonlFiles),
+                    'total_points' => $totalPoints,
+                    'processing_stats' => [
+                        'total_files_processed' => count($jsonlFiles),
+                        'method' => 'jsonl',
+                        'variant' => $embedding->variant,
+                    ],
+                ];
+            }
+
+            // Regular processing (non-JSONL)
+            // Extract text from files
+            $allFiles = $dataset->repository->files;
+            $textFiles = $allFiles->filter(function ($file) {
+                return in_array(strtolower(pathinfo($file->name, PATHINFO_EXTENSION)), ['txt', 'md']);
+            });
+
+            if ($textFiles->isEmpty()) {
+                throw new Exception('No text files found in the dataset for embedding generation');
+            }
+
+            $documents = [];
+            foreach ($textFiles as $file) {
+                $filePath = Storage::disk('local')->path($file->path);
+                if (!file_exists($filePath)) {
+                    continue;
+                }
+                
+                $content = file_get_contents($filePath);
+                if (empty(trim($content))) {
+                    continue;
+                }
+
+                $documents[] = [
+                    'text' => $content,
+                    'metadata' => [
+                        'file_name' => $file->name,
+                        'file_id' => $file->id,
+                        'dataset_id' => $dataset->id,
+                        'dataset_uuid' => $dataset->uuid,
+                    ],
+                ];
+            }
+
+            if (empty($documents)) {
+                throw new Exception('No valid text content found for embedding generation');
+            }
+
+            // Chunk documents
+            $chunks = $this->chunkDocuments($documents, $chunkSize, $chunkOverlap);
+            
+            // Ensure Qdrant collection exists
+            $this->ensureQdrantCollection($embedding->qdrant_collection_name);
+
+            // Generate embeddings and upload to Qdrant in batches
+            $totalPoints = $this->generateAndUploadEmbeddings($chunks, $embedding->qdrant_collection_name);
+
+            Log::info("Variant embedding generation completed", [
+                'dataset_id' => $dataset->id,
+                'variant' => $embedding->variant,
+                'total_chunks' => count($chunks),
+                'total_points' => $totalPoints,
+            ]);
+
+            return [
+                'total_chunks' => count($chunks),
+                'total_points' => $totalPoints,
+                'processing_stats' => [
+                    'total_documents' => count($documents),
+                    'chunk_size' => $chunkSize,
+                    'chunk_overlap' => $chunkOverlap,
+                    'variant' => $embedding->variant,
+                ],
+            ];
+
+        } catch (Exception $e) {
+            Log::error("Variant embedding generation failed", [
+                'dataset_id' => $dataset->id,
+                'variant' => $embedding->variant,
+                'error' => $e->getMessage()
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
      * Search similar content in a dataset.
      */
-    public function search(Dataset $dataset, string $query, int $limit = 10, ?array $filter = null): array
+    public function search(Dataset $dataset, string $query, int $limit = 10, ?array $filter = null, ?string $variant = null): array
     {
-        $embedding = $dataset->embedding;
+        // Get the correct embedding based on variant
+        $embedding = $variant 
+            ? $dataset->getEmbeddingByVariant($variant)
+            : $dataset->embedding;
         
         if (!$embedding || !$embedding->isCompleted()) {
-            throw new Exception('Dataset embeddings are not available. Please generate embeddings first.');
+            $variantText = $variant ? " (variant: {$variant})" : '';
+            throw new Exception("Dataset embeddings{$variantText} are not available. Please generate embeddings first.");
         }
 
         // Generate embedding for the query
         $queryVector = $this->embeddingService->generateEmbedding($query);
 
-        // Search in Qdrant
+        // Search in Qdrant using the embedding's collection name
         $results = $this->qdrantService->search(
             $embedding->qdrant_collection_name,
             $queryVector,
