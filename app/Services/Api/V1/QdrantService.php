@@ -142,6 +142,32 @@ class QdrantService
     }
 
     /**
+     * Scroll through points in a collection (for sampling/iteration).
+     */
+    public function scroll(string $collectionName, int $limit = 100, ?string $offset = null, bool $withVectors = false): array
+    {
+        $scrollPayload = [
+            'limit' => $limit,
+            'with_payload' => true,
+            'with_vector' => $withVectors
+        ];
+
+        if ($offset) {
+            $scrollPayload['offset'] = $offset;
+        }
+
+        $response = $this->makeRequest('POST', "/collections/{$collectionName}/points/scroll", $scrollPayload);
+
+        Log::debug("Qdrant scroll performed", [
+            'collection' => $collectionName,
+            'limit' => $limit,
+            'points_count' => count($response['result']['points'] ?? [])
+        ]);
+
+        return $response['result'] ?? [];
+    }
+
+    /**
      * Make HTTP request to Qdrant API.
      */
     private function makeRequest(string $method, string $endpoint, array $data = []): array

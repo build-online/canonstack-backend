@@ -29,6 +29,8 @@ class DatasetEmbedding extends Model
         'processing_stats',
         'processing_started_at',
         'processing_completed_at',
+        'structure_description',
+        'system_prompt',
     ];
 
     /**

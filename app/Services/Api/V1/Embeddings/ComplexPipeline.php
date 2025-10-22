@@ -9,6 +9,8 @@ use App\Events\EmbeddingVariantFailed;
 use App\Models\Dataset;
 use App\Models\DatasetEmbedding;
 use App\Services\Api\V1\DatasetEmbeddingService;
+use App\Services\Api\V1\AI\DatasetStructureAnalyzerService;
+use App\Services\Api\V1\AI\DatasetPromptGeneratorService;
 use Exception;
 use Illuminate\Support\Facades\Log;
 
@@ -28,10 +30,17 @@ use Illuminate\Support\Facades\Log;
 class ComplexPipeline implements EmbeddingPipelineInterface
 {
     private DatasetEmbeddingService $embeddingService;
+    private DatasetStructureAnalyzerService $structureAnalyzer;
+    private DatasetPromptGeneratorService $promptGenerator;
 
-    public function __construct(DatasetEmbeddingService $embeddingService)
-    {
+    public function __construct(
+        DatasetEmbeddingService $embeddingService,
+        DatasetStructureAnalyzerService $structureAnalyzer,
+        DatasetPromptGeneratorService $promptGenerator
+    ) {
         $this->embeddingService = $embeddingService;
+        $this->structureAnalyzer = $structureAnalyzer;
+        $this->promptGenerator = $promptGenerator;
     }
 
     /**
@@ -54,10 +63,52 @@ class ComplexPipeline implements EmbeddingPipelineInterface
             // Broadcast that embedding generation has started
             broadcast(new EmbeddingVariantStarted($embedding, 'complex'));
 
-            // Generate embeddings with complex strategy
+            // Generate embeddings with complex strategy (with metadata collection)
             $result = $this->generateComplexEmbeddings($dataset, $embedding, $options);
 
+            // Analyze dataset structure and generate system prompt
+            broadcast(new EmbeddingVariantProgress($embedding, 'complex', 92, 'Analyzing dataset structure'));
+            
+            try {
+                if (!empty($result['collected_metadata'])) {
+                    $structureDescription = $this->structureAnalyzer->analyzeFromCollectedMetadata(
+                        $dataset, 
+                        $result['collected_metadata']
+                    );
+                } else {
+                    $structureDescription = $this->structureAnalyzer->analyzeStructure($dataset, $embedding, 100);
+                }
+                
+                broadcast(new EmbeddingVariantProgress($embedding, 'complex', 95, 'Generating dataset-specific system prompt'));
+                
+                $systemPrompt = $this->promptGenerator->generateSystemPrompt($dataset, $embedding, $structureDescription);
+                
+                // Save structure description and system prompt to embedding
+                $embedding->update([
+                    'structure_description' => $structureDescription,
+                    'system_prompt' => $systemPrompt,
+                ]);
+                
+                Log::info("Dataset metadata generated successfully", [
+                    'dataset_id' => $dataset->id,
+                    'embedding_id' => $embedding->id,
+                    'structure_description_length' => strlen($structureDescription),
+                    'system_prompt_length' => strlen($systemPrompt)
+                ]);
+                
+            } catch (Exception $e) {
+                Log::warning("Failed to generate dataset metadata, continuing with embedding completion", [
+                    'dataset_id' => $dataset->id,
+                    'embedding_id' => $embedding->id,
+                    'error' => $e->getMessage()
+                ]);
+                // Don't fail the entire process if metadata generation fails
+                // The embedding is still valid without it
+            }
+
             // Mark as completed
+            broadcast(new EmbeddingVariantProgress($embedding, 'complex', 98, 'Finalizing'));
+            
             $embedding->markAsCompleted(
                 $result['total_chunks'],
                 $result['total_points'],
@@ -112,7 +163,9 @@ class ComplexPipeline implements EmbeddingPipelineInterface
         broadcast(new EmbeddingVariantProgress($embedding, 'complex', 10, 'Starting complex embedding generation'));
 
         // Generate embeddings using the variant-specific collection
+        // Enable metadata collection for complex pipeline
         $complexOptions['existing_embedding'] = $embedding;
+        $complexOptions['collect_metadata'] = true; 
         $result = $this->embeddingService->generateEmbeddingsForVariant($dataset, $embedding, $complexOptions);
         
         broadcast(new EmbeddingVariantProgress($embedding, 'complex', 90, 'Finalizing complex embeddings'));
@@ -120,6 +173,7 @@ class ComplexPipeline implements EmbeddingPipelineInterface
         return [
             'total_chunks' => $result['total_chunks'],
             'total_points' => $result['total_points'],
+            'collected_metadata' => $result['collected_metadata'] ?? null,  // Pass through collected metadata
             'processing_stats' => array_merge($result['processing_stats'] ?? [], [
                 'variant' => 'complex',
                 'pipeline' => 'ComplexPipeline',
@@ -127,7 +181,7 @@ class ComplexPipeline implements EmbeddingPipelineInterface
                 'chunk_size' => $complexOptions['chunk_size'],
                 'chunk_overlap' => $complexOptions['chunk_overlap'],
                 'description' => 'Identical embeddings to production, isolated in separate collection for experimentation',
-                'enhancements' => 'none (planned: reranking, multi-vector, function calling)',
+                'enhancements' => 'metadata collection for comprehensive structure analysis',
             ]),
         ];
     }
