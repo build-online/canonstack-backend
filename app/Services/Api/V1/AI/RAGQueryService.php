@@ -5,6 +5,7 @@ namespace App\Services\Api\V1\AI;
 use App\Models\Dataset;
 use App\Services\Api\V1\DatasetEmbeddingService;
 use App\Services\Api\V1\AI\AIProviderService;
+use App\Services\Api\V1\AI\QueryEnhancementService;
 use Exception;
 use Illuminate\Support\Facades\Log;
 
@@ -12,13 +13,16 @@ class RAGQueryService
 {
     private DatasetEmbeddingService $embeddingService;
     private AIProviderService $aiService;
+    private QueryEnhancementService $queryEnhancementService;
 
     public function __construct(
         DatasetEmbeddingService $embeddingService, 
-        AIProviderService $aiService
+        AIProviderService $aiService,
+        QueryEnhancementService $queryEnhancementService
     ) {
         $this->embeddingService = $embeddingService;
         $this->aiService = $aiService;
+        $this->queryEnhancementService = $queryEnhancementService;
     }
 
     /**
@@ -51,14 +55,42 @@ class RAGQueryService
             'dataset_uuid' => $dataset->uuid,
             'query_length' => strlen($query),
             'ai_provider' => $aiProvider,
-            'embedding_model' => $embedding->embedding_model
+            'embedding_model' => $embedding->embedding_model,
+            'variant' => $variant
         ]);
 
         try {
+            // Step 0: Enhance query using AI for complex variant
+            $enhancementResult = null;
+            $searchQuery = $query; // Default to original query
+            
+            if ($variant === 'complex' && !empty($embedding->structure_description)) {
+                Log::info("Enhancing query for complex variant", [
+                    'dataset_id' => $dataset->id,
+                    'original_query' => $query
+                ]);
+                
+                $enhancementResult = $this->queryEnhancementService->enhanceQuery(
+                    $query,
+                    $embedding->structure_description
+                );
+                
+                // Use enhanced query for search if enhancement was successful
+                if ($enhancementResult['enhancement_used']) {
+                    $searchQuery = $enhancementResult['enhanced_query'];
+                    
+                    Log::info("Query enhanced successfully", [
+                        'dataset_id' => $dataset->id,
+                        'original_query' => $query,
+                        'enhanced_query' => $searchQuery
+                    ]);
+                }
+            }
+            
             // Step 1: Search for relevant context using vector similarity
             $searchResults = $this->embeddingService->search(
                 $dataset,
-                $query,
+                $searchQuery,
                 $options['search_limit'] ?? 10,
                 $options['search_filter'] ?? null,
                 $variant
@@ -104,7 +136,7 @@ class RAGQueryService
                     'all_scores' => array_map(fn($r) => round($r['score'] ?? 0, 4), $searchResults)
                 ]);
                 
-                return [
+                $noContextResponse = [
                     'query' => $query,
                     'dataset_id' => $dataset->uuid,
                     'ai_provider' => $aiProvider,
@@ -121,6 +153,20 @@ class RAGQueryService
                         'suggestion' => count($searchResults) > 0 ? 'Try lowering the search_threshold parameter or check if your query is relevant to the dataset content' : 'Check if embeddings were generated successfully'
                     ]
                 ];
+                
+                // Add query enhancement information if available
+                if ($enhancementResult !== null) {
+                    $noContextResponse['query_enhancement'] = [
+                        'enhanced_query' => $enhancementResult['enhanced_query'],
+                        'original_query' => $enhancementResult['original_query'],
+                        'enhancement_used' => $enhancementResult['enhancement_used'],
+                        'model_used' => $enhancementResult['model_used'] ?? null,
+                        'tokens_used' => $enhancementResult['tokens_used'] ?? null,
+                    ];
+                    $noContextResponse['enhanced_query'] = $enhancementResult['enhanced_query'];
+                }
+                
+                return $noContextResponse;
             }
 
             // Step 2: Build context from search results
@@ -148,7 +194,7 @@ class RAGQueryService
                 'response_parsed' => $parsedResponse['is_parsed']
             ]);
 
-            return [
+            $response = [
                 'query' => $query,
                 'dataset_id' => $dataset->uuid,
                 'dataset_name' => $dataset->title ?? 'Unnamed Dataset',
@@ -172,6 +218,22 @@ class RAGQueryService
                     'final_prompt_length' => strlen($prompt)
                 ]
             ];
+            
+            // Add query enhancement information for complex variant
+            if ($enhancementResult !== null) {
+                $response['query_enhancement'] = [
+                    'enhanced_query' => $enhancementResult['enhanced_query'],
+                    'original_query' => $enhancementResult['original_query'],
+                    'enhancement_used' => $enhancementResult['enhancement_used'],
+                    'model_used' => $enhancementResult['model_used'] ?? null,
+                    'tokens_used' => $enhancementResult['tokens_used'] ?? null,
+                ];
+                
+                // Also add enhanced_query at root level for easy access
+                $response['enhanced_query'] = $enhancementResult['enhanced_query'];
+            }
+            
+            return $response;
 
         } catch (Exception $e) {
             Log::error("RAG query failed", [

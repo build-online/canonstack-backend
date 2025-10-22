@@ -112,6 +112,12 @@ class ConversationService
                 'search_metadata' => $ragResult['search_metadata'] ?? null,
                 'ai_model' => $ragResult['ai_model'] ?? null,
             ];
+            
+            // Add AI query enhancement information if available (for complex variant)
+            if (isset($ragResult['query_enhancement'])) {
+                $ragMetadata['query_enhancement'] = $ragResult['query_enhancement'];
+                $ragMetadata['enhanced_query'] = $ragResult['enhanced_query'] ?? null;
+            }
 
             // Handle AI response and prepare content for storage
             $originalContent = null;
@@ -147,7 +153,7 @@ class ConversationService
                 'total_messages' => $conversation->total_messages
             ]);
 
-            return [
+            $response = [
                 'conversation_id' => $conversation->id,
                 'message' => [
                     'id' => $assistantMessage->id,
@@ -169,6 +175,14 @@ class ConversationService
                 'relevant_chunks' => $ragResult['relevant_chunks'],
                 'usage' => $ragResult['usage'] ?? null,
             ];
+            
+            // Add query enhancement information if available (for complex variant)
+            if (isset($ragResult['query_enhancement'])) {
+                $response['query_enhancement'] = $ragResult['query_enhancement'];
+                $response['enhanced_query'] = $ragResult['enhanced_query'] ?? null;
+            }
+            
+            return $response;
 
         } catch (Exception $e) {
             Log::error("Conversation message processing failed", [

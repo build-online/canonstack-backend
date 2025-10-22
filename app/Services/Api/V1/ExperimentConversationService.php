@@ -119,6 +119,12 @@ class ExperimentConversationService
                 'ai_model' => $ragResult['ai_model'] ?? null,
                 'variant' => $variant,
             ];
+            
+            // Add AI query enhancement information for complex variant
+            if (isset($ragResult['query_enhancement'])) {
+                $ragMetadata['query_enhancement'] = $ragResult['query_enhancement'];
+                $ragMetadata['enhanced_query'] = $ragResult['enhanced_query'] ?? null;
+            }
 
             // Handle AI response and prepare content for storage
             $originalContent = null;
@@ -154,7 +160,7 @@ class ExperimentConversationService
                 'total_messages' => $conversation->total_messages
             ]);
 
-            return [
+            $response = [
                 'conversation_id' => $conversation->id,
                 'variant' => $variant,
                 'message' => [
@@ -179,6 +185,14 @@ class ExperimentConversationService
                 'citations' => $this->formatCitations($contextChunks), // Use the actual chunks array
                 'usage' => $ragResult['usage'] ?? null,
             ];
+            
+            // Add query enhancement information for complex variant
+            if (isset($ragResult['query_enhancement'])) {
+                $response['query_enhancement'] = $ragResult['query_enhancement'];
+                $response['enhanced_query'] = $ragResult['enhanced_query'] ?? null;
+            }
+            
+            return $response;
 
         } catch (Exception $e) {
             Log::error("Experiment conversation message processing failed", [
