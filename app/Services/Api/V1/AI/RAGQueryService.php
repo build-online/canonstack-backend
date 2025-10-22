@@ -127,7 +127,7 @@ class RAGQueryService
             $context = $this->buildContext($filteredResults, $options);
 
             // Step 3: Create prompt using template or custom format
-            $prompt = $this->buildPrompt($query, $context, $options);
+            $prompt = $this->buildPrompt($query, $context, $options, $embedding);
 
             // Step 4: Generate AI response
             $aiResponse = $this->aiService->generateResponse($aiProvider, $prompt, [
@@ -328,7 +328,7 @@ class RAGQueryService
     /**
      * Build the final prompt for AI.
      */
-    private function buildPrompt(string $query, string $context, array $options = []): string
+    private function buildPrompt(string $query, string $context, array $options = [], $embedding = null): string
     {
         $template = $options['prompt_template'] ?? 'default';
         $customInstructions = $options['instructions'] ?? null;
@@ -349,15 +349,37 @@ class RAGQueryService
             'qa' => $this->buildQAPrompt($query, $context, $customInstructions, $responseFormat),
             'summary' => $this->buildSummaryPrompt($query, $context, $customInstructions, $responseFormat),
             'structured' => $this->buildStructuredPrompt($query, $context, $customInstructions, $responseFormat),
-            default => $this->buildDefaultPrompt($query, $context, $customInstructions, $responseFormat)
+            default => $this->buildDefaultPrompt($query, $context, $customInstructions, $responseFormat, $embedding)
         };
     }
 
     /**
      * Build default prompt template with strict guardrails.
+     * If a custom system prompt is available from the embedding (complex variant), use it.
      */
-    private function buildDefaultPrompt(string $query, string $context, ?string $instructions, ?string $format): string
+    private function buildDefaultPrompt(string $query, string $context, ?string $instructions, ?string $format, $embedding = null): string
     {
+        // Check if embedding has a custom system prompt (for complex variant)
+        if ($embedding && !empty($embedding->system_prompt)) {
+            $prompt = $embedding->system_prompt . "\n\n";
+            
+            if ($instructions) {
+                $prompt .= "### Additional Instructions:\n";
+                $prompt .= $instructions . "\n\n";
+            }
+            
+            $prompt .= "### User Question:\n{$query}\n\n";
+            $prompt .= "### Dataset Context:\n{$context}\n\n";
+            
+            if ($format) {
+                $prompt .= "### Response Format:\n{$format}\n\n";
+            }
+            
+            $prompt .= "### Your Response:\n";
+            
+            return $prompt;
+        }
+        
         $baseInstructions = $instructions ?? "Answer the user's question based ONLY on the provided context from the dataset. Be accurate and cite relevant information when possible.";
         
         $prompt = "### CRITICAL INSTRUCTIONS:\n";

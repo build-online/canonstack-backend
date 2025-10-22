@@ -8,18 +8,20 @@ use App\Services\Api\V1\DatasetEmbeddingService;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class GenerateDatasetEmbeddings implements ShouldQueue
+class GenerateDatasetEmbeddings implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $timeout = 3600; // 1 hour timeout
     public $tries = 1; // Don't retry failed jobs automatically
     public $maxExceptions = 1;
+    public $uniqueFor = 3600; // Keep the unique lock for 1 hour (same as timeout)
 
     private Dataset $dataset;
     private array $options;
@@ -40,6 +42,15 @@ class GenerateDatasetEmbeddings implements ShouldQueue
             'dataset_uuid' => $dataset->uuid,
             'options' => $options
         ]);
+    }
+
+    /**
+     * Get the unique ID for the job.
+     * Ensures only one job per dataset can be queued at a time.
+     */
+    public function uniqueId(): string
+    {
+        return "generate-dataset-embedding-{$this->dataset->id}";
     }
 
     /**
@@ -92,14 +103,20 @@ class GenerateDatasetEmbeddings implements ShouldQueue
      */
     public function failed(Exception $exception): void
     {
-        Log::error("Embedding generation job permanently failed", [
-            'dataset_id' => $this->dataset->id,
-            'dataset_uuid' => $this->dataset->uuid,
-            'job_id' => $this->job?->getJobId(),
-            'error' => $exception->getMessage()
-        ]);
+        // Only log if this is not a duplicate job rejection
+        // (Duplicate jobs will have null job property and MaxAttemptsExceededException)
+        $isDuplicateRejection = !$this->job && $exception instanceof \Illuminate\Queue\MaxAttemptsExceededException;
+        
+        if (!$isDuplicateRejection) {
+            Log::error("Embedding generation job permanently failed", [
+                'dataset_id' => $this->dataset->id,
+                'dataset_uuid' => $this->dataset->uuid,
+                'job_id' => $this->job?->getJobId(),
+                'error' => $exception->getMessage()
+            ]);
 
-        $this->markEmbeddingAsFailed($exception->getMessage());
+            $this->markEmbeddingAsFailed($exception->getMessage());
+        }
     }
 
     /**

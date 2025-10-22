@@ -201,22 +201,35 @@ class DatasetEmbeddingService
                 
                 // Get ALL JSONL files (both pre-embedded and raw)
                 $jsonlFiles = $this->detectAllJsonlFiles($dataset);
-                $totalPoints = $this->processRawJsonlFilesToQdrant(
+                $collectMetadata = $options['collect_metadata'] ?? false;
+                $result = $this->processRawJsonlFilesToQdrant(
                     $jsonlFiles, 
                     $embedding->qdrant_collection_name,
-                    $jsonlConfig
+                    $jsonlConfig,
+                    $collectMetadata
                 );
+                
+                // Handle different return types (int vs array with metadata)
+                if (is_array($result)) {
+                    $totalPoints = $result['total_points'];
+                    $collectedMetadata = $result['collected_metadata'] ?? null;
+                } else {
+                    $totalPoints = $result;
+                    $collectedMetadata = null;
+                }
                 
                 // Return results
                 return [
                     'total_chunks' => count($jsonlFiles),
                     'total_points' => $totalPoints,
+                    'collected_metadata' => $collectedMetadata,
                     'processing_stats' => [
                         'total_files_processed' => count($jsonlFiles),
                         'method' => 'raw_jsonl_with_mapping',
                         'variant' => $embedding->variant,
                         'text_field' => $jsonlConfig['text_field'],
                         'metadata_fields' => $jsonlConfig['metadata_fields'] ?? [],
+                        'metadata_collected' => $collectMetadata,
                     ],
                 ];
             }
@@ -234,17 +247,29 @@ class DatasetEmbeddingService
                 // Create Qdrant collection
                 $this->ensureQdrantCollection($embedding->qdrant_collection_name);
                 
-                // Process JSONL files directly
-                $totalPoints = $this->processJsonlFilesToQdrant($jsonlFiles, $embedding->qdrant_collection_name);
+                // Process JSONL files directly, with optional metadata collection
+                $collectMetadata = $options['collect_metadata'] ?? false;
+                $result = $this->processJsonlFilesToQdrant($jsonlFiles, $embedding->qdrant_collection_name, $collectMetadata);
+                
+                // Handle different return types (int vs array with metadata)
+                if (is_array($result)) {
+                    $totalPoints = $result['total_points'];
+                    $collectedMetadata = $result['collected_metadata'] ?? null;
+                } else {
+                    $totalPoints = $result;
+                    $collectedMetadata = null;
+                }
                 
                 // Return results
                 return [
                     'total_chunks' => count($jsonlFiles),
                     'total_points' => $totalPoints,
+                    'collected_metadata' => $collectedMetadata,
                     'processing_stats' => [
                         'total_files_processed' => count($jsonlFiles),
                         'method' => 'jsonl',
                         'variant' => $embedding->variant,
+                        'metadata_collected' => $collectMetadata,
                     ],
                 ];
             }
@@ -757,10 +782,24 @@ class DatasetEmbeddingService
 
     /**
      * Process JSONL files directly to Qdrant without embedding generation.
+     * 
+     * @param array $jsonlFiles Files to process
+     * @param string $collectionName Qdrant collection name
+     * @param bool $collectMetadata Whether to collect metadata for structure analysis
+     * @return array|int Returns int (total points) if not collecting metadata, array with points and metadata if collecting
      */
-    private function processJsonlFilesToQdrant(array $jsonlFiles, string $collectionName): int
+    private function processJsonlFilesToQdrant(array $jsonlFiles, string $collectionName, bool $collectMetadata = false): array|int
     {
         $totalPoints = 0;
+        
+        // Initialize metadata collection if requested
+        $metadataAnalysis = $collectMetadata ? [
+            'total_samples' => 0,
+            'text_field_samples' => [],
+            'metadata_fields' => [],
+            'metadata_field_types' => [],
+            'metadata_field_values' => [],
+        ] : null;
         
         foreach ($jsonlFiles as $file) {
             $tempPath = null;
@@ -843,6 +882,11 @@ class DatasetEmbeddingService
                     
                     $points[] = $data;
                     
+                    // Collect metadata for structure analysis if requested
+                    if ($collectMetadata) {
+                        $this->collectMetadataFromPayload($metadataAnalysis, $originalPayload);
+                    }
+                    
                     // Process in batches to manage memory
                     if (count($points) >= 100) {
                         $this->qdrantService->batchInsertPoints($collectionName, $points);
@@ -883,6 +927,15 @@ class DatasetEmbeddingService
                 
                 throw new Exception("Failed to process JSONL file {$file->name}: {$e->getMessage()}");
             }
+        }
+        
+        if ($collectMetadata) {
+            $this->finalizeMetadataAnalysis($metadataAnalysis, $totalPoints);
+            
+            return [
+                'total_points' => $totalPoints,
+                'collected_metadata' => $metadataAnalysis
+            ];
         }
         
         return $totalPoints;
@@ -990,7 +1043,7 @@ class DatasetEmbeddingService
      * If vector_field is specified, reuse existing vectors.
      * Otherwise, generate embeddings from text_field.
      */
-    private function processRawJsonlFilesToQdrant(array $jsonlFiles, string $collectionName, array $jsonlConfig): int
+    private function processRawJsonlFilesToQdrant(array $jsonlFiles, string $collectionName, array $jsonlConfig, bool $collectMetadata = false): array|int
     {
         $totalPoints = 0;
         $textField = $jsonlConfig['text_field'];
@@ -998,6 +1051,15 @@ class DatasetEmbeddingService
         $metadataFields = $jsonlConfig['metadata_fields'] ?? [];
         
         $useExistingVectors = !empty($vectorField);
+        
+        // Initialize metadata collection if requested
+        $metadataAnalysis = $collectMetadata ? [
+            'total_samples' => 0,
+            'text_field_samples' => [],
+            'metadata_fields' => [],
+            'metadata_field_types' => [],
+            'metadata_field_values' => [],
+        ] : null;
         
         Log::info("Processing JSONL files with field mapping", [
             'text_field' => $textField,
@@ -1104,12 +1166,6 @@ class DatasetEmbeddingService
                                 continue;
                             }
                             
-                            Log::debug("Reusing existing vector", [
-                                'file_name' => $file->name,
-                                'line_number' => $lineNumber,
-                                'vector_dimensions' => count($vector),
-                                'is_pre_embedded' => $isPreEmbedded
-                            ]);
                         } else {
                             // Generate new embedding from text content
                             $vector = $this->embeddingService->generateEmbedding($textContent);
@@ -1139,6 +1195,13 @@ class DatasetEmbeddingService
                             'vector' => $vector,
                             'payload' => $payload
                         ];
+                        
+                        // Collect metadata for structure analysis if requested
+                        if ($collectMetadata) {
+                            // Build full payload for analysis (combining text and metadata)
+                            $fullPayload = array_merge(['text' => $textContent], $metadata);
+                            $this->collectMetadataFromPayload($metadataAnalysis, $fullPayload);
+                        }
                         
                         // Insert in batches
                         if (count($points) >= $batchSize) {
@@ -1198,6 +1261,71 @@ class DatasetEmbeddingService
             }
         }
         
+        // Return metadata if collected, otherwise just the total points
+        if ($collectMetadata) {
+            $this->finalizeMetadataAnalysis($metadataAnalysis, $totalPoints);
+            
+            return [
+                'total_points' => $totalPoints,
+                'collected_metadata' => $metadataAnalysis
+            ];
+        }
+        
         return $totalPoints;
+    }
+
+    /**
+     * Collect metadata from a payload for structure analysis.
+     * Matches the logic from DatasetStructureAnalyzerService::analyzePointsStructure
+     */
+    private function collectMetadataFromPayload(array &$metadataAnalysis, array $payload): void
+    {
+        $metadataAnalysis['total_samples']++;
+        
+        if (isset($payload['text']) && is_string($payload['text'])) {
+            if (count($metadataAnalysis['text_field_samples']) < 500) {
+                $metadataAnalysis['text_field_samples'][] = mb_substr($payload['text'], 0, 500);
+            }
+        }
+        
+        foreach ($payload as $key => $value) {
+            if (!isset($metadataAnalysis['metadata_fields'][$key])) {
+                $metadataAnalysis['metadata_fields'][$key] = 0;
+            }
+            $metadataAnalysis['metadata_fields'][$key]++;
+            
+            $type = gettype($value);
+            if (!isset($metadataAnalysis['metadata_field_types'][$key])) {
+                $metadataAnalysis['metadata_field_types'][$key] = [];
+            }
+            if (!isset($metadataAnalysis['metadata_field_types'][$key][$type])) {
+                $metadataAnalysis['metadata_field_types'][$key][$type] = 0;
+            }
+            $metadataAnalysis['metadata_field_types'][$key][$type]++;
+            
+            if (!isset($metadataAnalysis['metadata_field_values'][$key])) {
+                $metadataAnalysis['metadata_field_values'][$key] = [];
+            }
+            
+            $valueStr = is_scalar($value) ? (string)$value : json_encode($value);
+            if (count($metadataAnalysis['metadata_field_values'][$key]) < 20 && 
+                !in_array($valueStr, $metadataAnalysis['metadata_field_values'][$key])) {
+                $metadataAnalysis['metadata_field_values'][$key][] = $valueStr;
+            }
+        }
+    }
+
+    /**
+     * Finalize metadata analysis by calculating field frequencies.
+     * Matches the logic from DatasetStructureAnalyzerService::analyzePointsStructure
+     */
+    private function finalizeMetadataAnalysis(array &$metadataAnalysis, int $totalSamples): void
+    {
+        foreach ($metadataAnalysis['metadata_fields'] as $field => $count) {
+            $metadataAnalysis['metadata_fields'][$field] = [
+                'count' => $count,
+                'frequency_percent' => round(($count / $totalSamples) * 100, 1)
+            ];
+        }
     }
 }

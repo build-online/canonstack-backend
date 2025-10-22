@@ -36,6 +36,15 @@ class Handler extends ExceptionHandler
      */
     public function register()
     {
+        // Don't report duplicate job rejections (harmless queue optimization)
+        $this->reportable(function (\Illuminate\Queue\MaxAttemptsExceededException $e) {
+            // If this is a duplicate job rejection for our embedding jobs, don't report it
+            if (str_contains($e->getMessage(), 'GenerateVariantEmbeddingJob') || 
+                str_contains($e->getMessage(), 'GenerateDatasetEmbeddings')) {
+                return false;
+            }
+        });
+        
         $this->reportable(function (Throwable $e) {
             if ($this->shouldReport($e) && app()->bound('sentry')) {
                 app('sentry')->captureException($e);
