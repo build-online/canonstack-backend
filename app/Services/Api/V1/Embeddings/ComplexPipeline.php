@@ -66,6 +66,31 @@ class ComplexPipeline implements EmbeddingPipelineInterface
             // Generate embeddings with complex strategy (with metadata collection)
             $result = $this->generateComplexEmbeddings($dataset, $embedding, $options);
 
+            // Create payload indexes for metadata filtering (if metadata was collected)
+            if (!empty($result['collected_metadata'])) {
+                broadcast(new EmbeddingVariantProgress($embedding, 'complex', 90, 'Creating metadata indexes for filtering'));
+                
+                try {
+                    $this->embeddingService->ensureMetadataIndexes(
+                        $embedding->qdrant_collection_name,
+                        $result['collected_metadata']
+                    );
+                    
+                    Log::info("Metadata payload indexes created", [
+                        'dataset_id' => $dataset->id,
+                        'embedding_id' => $embedding->id,
+                        'collection' => $embedding->qdrant_collection_name
+                    ]);
+                } catch (Exception $e) {
+                    Log::warning("Failed to create metadata indexes, filtering may not work", [
+                        'dataset_id' => $dataset->id,
+                        'embedding_id' => $embedding->id,
+                        'error' => $e->getMessage()
+                    ]);
+                    // Don't fail if index creation fails - filtering just won't work
+                }
+            }
+            
             // Analyze dataset structure and generate system prompt
             broadcast(new EmbeddingVariantProgress($embedding, 'complex', 92, 'Analyzing dataset structure'));
             

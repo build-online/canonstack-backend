@@ -513,12 +513,162 @@ class DatasetEmbeddingService
     /**
      * Ensure Qdrant collection exists with proper configuration.
      */
-    private function ensureQdrantCollection(string $collectionName): void
+    private function ensureQdrantCollection(string $collectionName, array $payloadIndexes = []): void
     {
         if (!$this->qdrantService->collectionExists($collectionName)) {
             $vectorSize = $this->embeddingService->getVectorSize();
-            $this->qdrantService->createCollection($collectionName, $vectorSize);
+            $this->qdrantService->createCollection($collectionName, $vectorSize, $payloadIndexes);
+        } elseif (!empty($payloadIndexes)) {
+            // Collection exists, but we may need to add indexes
+            $this->qdrantService->createPayloadIndexes($collectionName, $payloadIndexes);
         }
+    }
+
+    /**
+     * Ensure payload indexes exist for metadata filtering.
+     * This is called after metadata collection to create indexes on relevant fields.
+     * 
+     * @param string $collectionName The Qdrant collection name
+     * @param array $collectedMetadata The metadata analysis from collection
+     */
+    public function ensureMetadataIndexes(string $collectionName, array $collectedMetadata): void
+    {
+        if (empty($collectedMetadata)) {
+            Log::warning("No collected metadata provided for index creation", [
+                'collection' => $collectionName
+            ]);
+            return;
+        }
+
+        $indexes = $this->determineRequiredIndexes($collectedMetadata);
+        
+        if (empty($indexes)) {
+            Log::info("No metadata indexes required", [
+                'collection' => $collectionName
+            ]);
+            return;
+        }
+
+        Log::info("Creating metadata payload indexes", [
+            'collection' => $collectionName,
+            'indexes' => array_keys($indexes)
+        ]);
+
+        $this->qdrantService->createPayloadIndexes($collectionName, $indexes);
+    }
+
+    /**
+     * Determine which metadata fields should be indexed based on collected metadata.
+     * 
+     * @param array $collectedMetadata The metadata analysis
+     * @return array Associative array of field_path => field_type
+     */
+    private function determineRequiredIndexes(array $collectedMetadata): array
+    {
+        $indexes = [];
+        
+        if (empty($collectedMetadata['metadata_fields'])) {
+            return $indexes;
+        }
+
+        foreach ($collectedMetadata['metadata_fields'] as $field => $info) {
+            // Skip if field appears in less than 10% of records (probably not useful for filtering)
+            if (isset($info['frequency_percent']) && $info['frequency_percent'] < 10) {
+                continue;
+            }
+
+            // Determine field type from metadata
+            $fieldPath = "metadata.{$field}";
+            $fieldType = $this->determineFieldType($field, $collectedMetadata);
+            
+            // Only index fields that are suitable for filtering
+            if ($fieldType !== null) {
+                $indexes[$fieldPath] = $fieldType;
+            }
+        }
+
+        return $indexes;
+    }
+
+    /**
+     * Determine the Qdrant field type for a metadata field.
+     * 
+     * @param string $field The field name
+     * @param array $collectedMetadata The metadata analysis
+     * @return string|null The Qdrant field type or null if not indexable
+     */
+    private function determineFieldType(string $field, array $collectedMetadata): ?string
+    {
+        // Get the most common type for this field
+        $fieldTypes = $collectedMetadata['metadata_field_types'][$field] ?? [];
+        
+        if (empty($fieldTypes)) {
+            return null;
+        }
+
+        // Get most common type
+        arsort($fieldTypes);
+        $primaryType = array_key_first($fieldTypes);
+
+        // For string fields, determine if it should be 'text' or 'keyword'
+        if ($primaryType === 'string') {
+            return $this->shouldUseTextIndex($field, $collectedMetadata) ? 'text' : 'keyword';
+        }
+
+        // Map other PHP types to Qdrant field schema types
+        return match($primaryType) {
+            'integer' => 'integer',
+            'double' => 'float',
+            'boolean' => 'bool',
+            default => 'keyword'  // Default to keyword for safety
+        };
+    }
+
+    /**
+     * Determine if a string field should use 'text' index (for partial matching)
+     * or 'keyword' index (for exact matching).
+     * 
+     * @param string $field The field name
+     * @param array $collectedMetadata The metadata analysis
+     * @return bool True if should use 'text' index, false for 'keyword'
+     */
+    private function shouldUseTextIndex(string $field, array $collectedMetadata): bool
+    {
+        // Fields that typically contain references, citations, or hierarchical IDs
+        // should use 'text' index for flexible prefix matching
+        $textFieldPatterns = [
+            '_ref',       // e.g., nt_ref, ot_ref, book_ref
+            '_reference', // e.g., scripture_reference
+            '_id',        // e.g., chunk_id, record_id (might have prefixes/suffixes)
+            '_name',      // e.g., author_name, book_name
+            '_title',     // e.g., document_title
+            'citation',   // citation fields
+            'reference',  // reference fields
+        ];
+
+        // Check if field name matches any pattern that should use text index
+        $fieldLower = strtolower($field);
+        foreach ($textFieldPatterns as $pattern) {
+            if (str_contains($fieldLower, $pattern)) {
+                return true;
+            }
+        }
+
+        // Check if field has high cardinality (many unique values)
+        // High cardinality usually means it's a reference/ID field rather than a category
+        $fieldValues = $collectedMetadata['metadata_field_values'][$field] ?? [];
+        $sampleCount = $collectedMetadata['total_samples'] ?? 0;
+        
+        if ($sampleCount > 0 && count($fieldValues) >= 10) {
+            // If we have many different values in a small sample, it's likely a reference field
+            $uniqueRatio = count($fieldValues) / min($sampleCount, 20); // We collect max 20 sample values
+            if ($uniqueRatio > 0.5) {  // More than 50% unique values
+                return true;
+            }
+        }
+
+        // Default to keyword for categorical fields (form, type, status, etc.)
+        return false;
     }
 
     /**

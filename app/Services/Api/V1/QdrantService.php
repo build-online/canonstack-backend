@@ -24,7 +24,7 @@ class QdrantService
     /**
      * Create a new collection in Qdrant.
      */
-    public function createCollection(string $collectionName, int $vectorSize = null): array
+    public function createCollection(string $collectionName, int $vectorSize = null, array $payloadIndexes = []): array
     {
         $vectorSize = $vectorSize ?? $this->defaultVectorSize;
         
@@ -40,7 +40,61 @@ class QdrantService
             'vector_size' => $vectorSize
         ]);
 
+        // Create payload indexes if specified
+        if (!empty($payloadIndexes)) {
+            foreach ($payloadIndexes as $fieldPath => $fieldType) {
+                $this->createPayloadIndex($collectionName, $fieldPath, $fieldType);
+            }
+        }
+
         return $response;
+    }
+
+    /**
+     * Create a payload index for filtering on a specific field.
+     * 
+     * @param string $collectionName The collection name
+     * @param string $fieldPath The field path (e.g., 'metadata.ot_ref')
+     * @param string $fieldType The field type ('keyword', 'integer', 'float', 'bool', 'geo', 'text')
+     */
+    public function createPayloadIndex(string $collectionName, string $fieldPath, string $fieldType = 'keyword'): array
+    {
+        $response = $this->makeRequest('PUT', "/collections/{$collectionName}/index", [
+            'field_name' => $fieldPath,
+            'field_schema' => $fieldType
+        ]);
+
+        Log::info("Qdrant payload index created", [
+            'collection' => $collectionName,
+            'field_path' => $fieldPath,
+            'field_type' => $fieldType
+        ]);
+
+        return $response;
+    }
+
+    /**
+     * Create multiple payload indexes at once.
+     * 
+     * @param string $collectionName The collection name
+     * @param array $indexes Associative array of field_path => field_type
+     */
+    public function createPayloadIndexes(string $collectionName, array $indexes): void
+    {
+        foreach ($indexes as $fieldPath => $fieldType) {
+            try {
+                $this->createPayloadIndex($collectionName, $fieldPath, $fieldType);
+            } catch (Exception $e) {
+                // Log but don't fail if index already exists
+                if (!str_contains($e->getMessage(), 'already exists')) {
+                    Log::warning("Failed to create payload index", [
+                        'collection' => $collectionName,
+                        'field_path' => $fieldPath,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+        }
     }
 
     /**

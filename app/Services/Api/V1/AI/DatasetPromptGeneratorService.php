@@ -59,7 +59,7 @@ class DatasetPromptGeneratorService
             throw new Exception("OpenAI API key not configured");
         }
 
-        $systemPromptForAI = "You are an expert in creating system prompts for RAG (Retrieval-Augmented Generation) AI assistants. Your task is to create an effective system prompt that will guide an AI to answer questions accurately based on a specific dataset.";
+        $systemPromptForAI = "You are an expert prompt engineer specializing in creating RAG (Retrieval-Augmented Generation) system prompts. Your task is to analyze the provided dataset sample and create a comprehensive system prompt that will help the RAG assistant provide accurate, relevant, and well-formatted responses by effectively leveraging all available metadata fields.";
 
         $userPrompt = <<<PROMPT
 I need you to create a comprehensive system prompt for a RAG assistant that will be answering questions based on the following dataset:
@@ -75,28 +75,45 @@ I need you to create a comprehensive system prompt for a RAG assistant that will
 
 ---
 
-Please create a system prompt that includes:
+Please create a system prompt based on the following rules:
 
-1. **Expert Role Definition**: Define what kind of expert the AI should be based on the dataset content (e.g., "You are an expert on biblical texts and cross-references", "You are an expert on medical research papers", etc.)
-
-2. **Core RAG Instructions** (MUST INCLUDE THESE EXACTLY):
+**1. Expert Role Definition**: Define what kind of expert the AI should be based on the dataset content and domain.
+**2. Core RAG Instructions** (MUST INCLUDE THESE EXACTLY):
    - "### CRITICAL INSTRUCTIONS:"
    - "You are a RAG (Retrieval-Augmented Generation) assistant. You must follow these rules:"
    - "1. Answer questions confidently using the provided context from the dataset"
    - "2. Make reasonable connections and interpretations based on the context provided"
    - "3. If the context contains relevant information, provide a comprehensive answer"
-
-3. **Dataset-Specific Instructions**: Based on the structure and content of this specific dataset, add 3-5 additional instructions that tell the AI:
-   - How to use the metadata fields when answering questions
-   - What kind of citations or references to provide
-   - Any domain-specific conventions or patterns to follow
-   - How to handle edge cases specific to this dataset type
-
-4. **Response Guidelines**: Instructions on how to format responses, what tone to use, and how to cite sources using the available metadata.
-
-Create a clear, well-structured system prompt that will help the AI provide accurate, relevant, and well-formatted responses. Write it as if it's the actual system prompt that will be used directly (not as instructions about a prompt).
-
-Keep the prompt focused and professional. It should be comprehensive but concise (aim for 300-500 words).
+**3. Metadata-Driven Retrieval Guidelines**: Analyze the dataset's metadata fields and create 4-6 specific instructions that tell the AI how to:
+   - **Prioritize high-value metadata matches**: Identify which metadata fields are most critical for accurate retrieval (e.g., exact IDs, categories, dates, hierarchical references) and instruct the system to heavily weight chunks containing exact matches in these fields
+   - **Apply hierarchical filtering**: If the dataset has hierarchical or structured identifiers, create cascading priority rules (exact match > partial match > category match)
+   - **Leverage categorical metadata**: Instruct how to use classification fields (types, categories, tags) to ensure comprehensive coverage within the queried scope before expanding to related areas
+   - **Handle temporal or sequential data**: If applicable, provide guidance on chronological or sequential ordering using date, version, or sequence metadata
+   - **Cross-reference related fields**: Explain how to use relational metadata fields to provide complete context and connections
+   - **Maintain scope discipline**: Ensure the system exhaustively covers the primary query scope using metadata filters before including tangentially related content
+**4. Domain-Specific Response Guidelines**: Based on the dataset content, specify:
+   - How to structure responses using the available metadata
+   - What citation format to use incorporating the metadata fields
+   - Any domain-specific conventions or terminology to follow
+   - How to organize information hierarchically based on the metadata structure
+**5. Quality Control Instructions**: Add rules to ensure:
+   - All relevant chunks matching the metadata criteria are included before expanding scope
+   - Responses acknowledge the metadata-based organization of information
+   - Citations properly reference the key identifying metadata fields
+### LANGUAGE & TERMINOLOGY REQUIREMENTS (CRITICAL):
+- **Use human-readable, common language throughout the system prompt** - avoid technical field names
+- **Translate abbreviated field names into full, clear terms**:
+  - Infer the meaning of technical field names and use natural language equivalents
+- **Write instructions in plain language** that a domain expert would understand, not database column names
+- **Use terminology natural to the dataset's domain**, not technical metadata field names
+### OUTPUT REQUIREMENTS:
+- Write as a complete, ready-to-use system prompt (not instructions about a prompt)
+- Keep focused and professional
+- Aim for 400-600 words
+- Ensure the prompt will solve retrieval precision issues by making metadata utilization explicit and mandatory
+- Include specific examples using natural, human-readable language (NOT technical field names)
+- All references to metadata fields must be in common language that domain users would understand
+Analyze the dataset sample carefully to identify the most important metadata fields, translate them to human-readable terms, then create a prompt that makes their strategic use mandatory for the RAG assistant using natural, accessible language.
 PROMPT;
 
         try {
