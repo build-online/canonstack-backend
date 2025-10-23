@@ -125,6 +125,11 @@ class ExperimentConversationService
                 $ragMetadata['query_enhancement'] = $ragResult['query_enhancement'];
                 $ragMetadata['enhanced_query'] = $ragResult['enhanced_query'] ?? null;
             }
+            
+            // Add metadata filters information for complex variant
+            if (isset($ragResult['metadata_filters'])) {
+                $ragMetadata['metadata_filters'] = $ragResult['metadata_filters'];
+            }
 
             // Handle AI response and prepare content for storage
             $originalContent = null;

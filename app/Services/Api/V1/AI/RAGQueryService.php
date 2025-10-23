@@ -6,6 +6,7 @@ use App\Models\Dataset;
 use App\Services\Api\V1\DatasetEmbeddingService;
 use App\Services\Api\V1\AI\AIProviderService;
 use App\Services\Api\V1\AI\QueryEnhancementService;
+use App\Services\Api\V1\AI\QueryMetadataFilterService;
 use Exception;
 use Illuminate\Support\Facades\Log;
 
@@ -14,15 +15,18 @@ class RAGQueryService
     private DatasetEmbeddingService $embeddingService;
     private AIProviderService $aiService;
     private QueryEnhancementService $queryEnhancementService;
+    private QueryMetadataFilterService $metadataFilterService;
 
     public function __construct(
         DatasetEmbeddingService $embeddingService, 
         AIProviderService $aiService,
-        QueryEnhancementService $queryEnhancementService
+        QueryEnhancementService $queryEnhancementService,
+        QueryMetadataFilterService $metadataFilterService
     ) {
         $this->embeddingService = $embeddingService;
         $this->aiService = $aiService;
         $this->queryEnhancementService = $queryEnhancementService;
+        $this->metadataFilterService = $metadataFilterService;
     }
 
     /**
@@ -60,7 +64,7 @@ class RAGQueryService
         ]);
 
         try {
-            // Step 0: Enhance query using AI for complex variant
+            // Step 0a: Enhance query using AI for complex variant
             $enhancementResult = null;
             $searchQuery = $query; // Default to original query
             
@@ -87,18 +91,106 @@ class RAGQueryService
                 }
             }
             
-            // Step 1: Search for relevant context using vector similarity
-            $searchResults = $this->embeddingService->search(
-                $dataset,
-                $searchQuery,
-                $options['search_limit'] ?? 10,
-                $options['search_filter'] ?? null,
-                $variant
-            );
+            // Step 0b: Extract metadata filters using AI for complex variant
+            $filterResult = null;
+            $searchFilter = $options['search_filter'] ?? null; // Default to user-provided filter
+            
+            if ($variant === 'complex' && !empty($embedding->structure_description)) {
+                Log::info("Extracting metadata filters for complex variant", [
+                    'dataset_id' => $dataset->id,
+                    'original_query' => $query
+                ]);
+                
+                $filterResult = $this->metadataFilterService->extractFilters(
+                    $query,
+                    $embedding->structure_description
+                );
+                
+                // Use extracted filters if available and no user filter was provided
+                if ($filterResult['filters_used'] && empty($searchFilter)) {
+                    $searchFilter = $filterResult['filters'];
+                    
+                    Log::info("Metadata filters extracted successfully", [
+                        'dataset_id' => $dataset->id,
+                        'original_query' => $query,
+                        'filters_applied' => $searchFilter,
+                        'extracted_count' => count($filterResult['extracted_filters'] ?? [])
+                    ]);
+                } elseif ($filterResult['filters_used'] && !empty($searchFilter)) {
+                    Log::info("User-provided filter takes precedence over extracted filters", [
+                        'dataset_id' => $dataset->id,
+                        'user_filter' => $searchFilter
+                    ]);
+                }
+            }
+            
+            // Step 1: Search for relevant context using vector similarity with metadata filters
+            try {
+                $searchResults = $this->embeddingService->search(
+                    $dataset,
+                    $searchQuery,
+                    $options['search_limit'] ?? 10,
+                    $searchFilter, // Use extracted filter or user-provided filter
+                    $variant
+                );
+                
+                $filtersActuallyApplied = !empty($searchFilter);
+                
+            } catch (Exception $searchException) {
+                // Check if error is due to missing or wrong type of indexes
+                if (str_contains($searchException->getMessage(), 'Index required but not found')) {
+                    
+                    // Determine what type of index is missing
+                    $indexType = 'unknown';
+                    if (str_contains($searchException->getMessage(), '[text]')) {
+                        $indexType = 'text';
+                    } elseif (str_contains($searchException->getMessage(), '[keyword]')) {
+                        $indexType = 'keyword';
+                    }
+                    
+                    Log::warning("Metadata filter failed due to missing/wrong indexes, retrying without filters", [
+                        'dataset_id' => $dataset->id,
+                        'filters_attempted' => $searchFilter,
+                        'missing_index_type' => $indexType,
+                        'error' => $searchException->getMessage(),
+                        'solution' => $indexType === 'text' 
+                            ? 'Regenerate complex embedding to create text indexes for reference fields'
+                            : 'Collection needs payload indexes created'
+                    ]);
+                    
+                    // Retry without filters
+                    $searchResults = $this->embeddingService->search(
+                        $dataset,
+                        $searchQuery,
+                        $options['search_limit'] ?? 10,
+                        null, // No filters
+                        $variant
+                    );
+                    
+                    $filtersActuallyApplied = false;
+                    
+                    // Update filter result to indicate fallback
+                    if ($filterResult !== null) {
+                        $filterResult['filters_used'] = false;
+                        if ($indexType === 'text') {
+                            $filterResult['fallback_reason'] = 'Text indexes not found - regenerate complex embedding to enable flexible filtering on reference fields';
+                        } else {
+                            $filterResult['fallback_reason'] = 'Payload indexes not found - collection created before automatic indexing was implemented';
+                        }
+                    }
+                } else {
+                    // Different error, rethrow
+                    throw $searchException;
+                }
+            }
 
             Log::info("Vector search completed", [
                 'dataset_id' => $dataset->id,
                 'query' => $query,
+                'enhanced_query_used' => !empty($enhancementResult['enhancement_used']),
+                'metadata_filters_used' => $filtersActuallyApplied,
+                'filters_applied' => $filtersActuallyApplied ? $searchFilter : null,
+                'filter_fallback' => !empty($searchFilter) && !$filtersActuallyApplied,
                 'total_results' => count($searchResults),
                 'scores' => array_map(fn($r) => round($r['score'] ?? 0, 4), array_slice($searchResults, 0, 5))
             ]);
@@ -166,6 +258,19 @@ class RAGQueryService
                     $noContextResponse['enhanced_query'] = $enhancementResult['enhanced_query'];
                 }
                 
+                // Add metadata filter information if available
+                if ($filterResult !== null) {
+                    $noContextResponse['metadata_filters'] = [
+                        'filters_used' => $filterResult['filters_used'],
+                        'filters_applied' => $filterResult['filters'] ?? null,
+                        'extracted_filters' => $filterResult['extracted_filters'] ?? [],
+                        'reasoning' => $filterResult['reasoning'] ?? null,
+                        'fallback_reason' => $filterResult['fallback_reason'] ?? null,
+                        'model_used' => $filterResult['model_used'] ?? null,
+                        'tokens_used' => $filterResult['tokens_used'] ?? null,
+                    ];
+                }
+                
                 return $noContextResponse;
             }
 
@@ -231,6 +336,19 @@ class RAGQueryService
                 
                 // Also add enhanced_query at root level for easy access
                 $response['enhanced_query'] = $enhancementResult['enhanced_query'];
+            }
+            
+            // Add metadata filter information for complex variant
+            if ($filterResult !== null) {
+                $response['metadata_filters'] = [
+                    'filters_used' => $filterResult['filters_used'],
+                    'filters_applied' => $filterResult['filters'] ?? null,
+                    'extracted_filters' => $filterResult['extracted_filters'] ?? [],
+                    'reasoning' => $filterResult['reasoning'] ?? null,
+                    'fallback_reason' => $filterResult['fallback_reason'] ?? null,
+                    'model_used' => $filterResult['model_used'] ?? null,
+                    'tokens_used' => $filterResult['tokens_used'] ?? null,
+                ];
             }
             
             return $response;
